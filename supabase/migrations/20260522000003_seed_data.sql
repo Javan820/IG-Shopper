@@ -1,0 +1,1 @@
+-- Migration 003: Seed data removed — shops table starts empty.
