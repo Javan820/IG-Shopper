@@ -53,7 +53,7 @@ export function ShopReactionBar({
       if ('error' in result) {
         setCounts(prevCounts)
         setUserReaction(prevReaction)
-        setLastError(result.error)
+        setLastError(result.error ?? null)
       } else {
         setLastError(null)
       }

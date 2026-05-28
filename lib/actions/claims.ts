@@ -94,12 +94,12 @@ export async function submitClaim(_: unknown, formData: FormData) {
   redirect('/dashboard/claim?success=1')
 }
 
-export async function approveClaim(formData: FormData) {
+export async function approveClaim(formData: FormData): Promise<void> {
   const claimId = formData.get('claim_id') as string
-  if (!claimId) return { error: 'Missing claim ID.' }
+  if (!claimId) throw new Error('Missing claim ID.')
 
   const admin = await requireAdmin()
-  if (!admin) return { error: 'Unauthorised.' }
+  if (!admin) throw new Error('Unauthorised.')
 
   const adminClient = createAdminClient()
 
@@ -109,32 +109,31 @@ export async function approveClaim(formData: FormData) {
     .eq('id', claimId)
     .maybeSingle()
 
-  if (!claim) return { error: 'Claim not found.' }
+  if (!claim) throw new Error('Claim not found.')
 
   const { error: claimError } = await adminClient
     .from('shop_claims')
     .update({ status: 'approved' } as never)
     .eq('id', claimId)
 
-  if (claimError) return { error: claimError.message }
+  if (claimError) throw new Error(claimError.message)
 
   const { error: shopError } = await adminClient
     .from('shops')
     .update({ is_claimed: true, claimed_by: claim.user_id, is_verified: true } as never)
     .eq('id', claim.shop_id)
 
-  if (shopError) return { error: shopError.message }
+  if (shopError) throw new Error(shopError.message)
 
   revalidatePath('/admin/claims')
-  return { success: true as const }
 }
 
-export async function rejectClaim(formData: FormData) {
+export async function rejectClaim(formData: FormData): Promise<void> {
   const claimId = formData.get('claim_id') as string
-  if (!claimId) return { error: 'Missing claim ID.' }
+  if (!claimId) throw new Error('Missing claim ID.')
 
   const admin = await requireAdmin()
-  if (!admin) return { error: 'Unauthorised.' }
+  if (!admin) throw new Error('Unauthorised.')
 
   const adminClient = createAdminClient()
   const { error } = await adminClient
@@ -142,8 +141,7 @@ export async function rejectClaim(formData: FormData) {
     .update({ status: 'rejected' } as never)
     .eq('id', claimId)
 
-  if (error) return { error: error.message }
+  if (error) throw new Error(error.message)
 
   revalidatePath('/admin/claims')
-  return { success: true as const }
 }

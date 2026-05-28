@@ -213,36 +213,35 @@ export async function markHelpful(formData: FormData) {
   return { success: true as const }
 }
 
-export async function flagReview(formData: FormData) {
+export async function flagReview(formData: FormData): Promise<void> {
   const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
-  if (!user) return { error: 'Sign in to flag reviews.' }
+  if (!user) throw new Error('Sign in to flag reviews.')
 
   const reviewId = formData.get('review_id') as string
   const igHandle = formData.get('ig_handle') as string
-  if (!reviewId) return { error: 'Missing review ID.' }
+  if (!reviewId) throw new Error('Missing review ID.')
 
   const { error } = await supabase
     .from('review_flags')
     .insert({ review_id: reviewId, user_id: user.id } as never)
 
   if (error) {
-    if (error.code === '23505') return { error: 'You have already flagged this review.' }
-    return { error: error.message }
+    if (error.code === '23505') throw new Error('You have already flagged this review.')
+    throw new Error(error.message)
   }
 
   revalidatePath(`/shops/${igHandle}`)
-  return { success: true as const }
 }
 
-export async function dismissFlag(formData: FormData) {
+export async function dismissFlag(formData: FormData): Promise<void> {
   const flagId = formData.get('flag_id') as string
-  if (!flagId) return { error: 'Missing flag ID.' }
+  if (!flagId) throw new Error('Missing flag ID.')
 
   const admin = await requireAdmin()
-  if (!admin) return { error: 'Unauthorised.' }
+  if (!admin) throw new Error('Unauthorised.')
 
   const adminClient = createAdminClient()
   const { error } = await adminClient
@@ -250,22 +249,21 @@ export async function dismissFlag(formData: FormData) {
     .update({ status: 'dismissed' } as never)
     .eq('id', flagId)
 
-  if (error) return { error: error.message }
+  if (error) throw new Error(error.message)
 
   revalidatePath('/admin/reviews')
-  return { success: true as const }
 }
 
-export async function deleteReview(formData: FormData) {
+export async function deleteReview(formData: FormData): Promise<void> {
   const reviewId = formData.get('review_id') as string
   const igHandle = formData.get('ig_handle') as string
-  if (!reviewId) return { error: 'Missing review ID.' }
+  if (!reviewId) throw new Error('Missing review ID.')
 
   const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
-  if (!user) return { error: 'Sign in to delete a review.' }
+  if (!user) throw new Error('Sign in to delete a review.')
 
   const { error } = await supabase
     .from('reviews')
@@ -273,28 +271,26 @@ export async function deleteReview(formData: FormData) {
     .eq('id', reviewId)
     .eq('user_id', user.id)
 
-  if (error) return { error: error.message }
+  if (error) throw new Error(error.message)
 
   revalidatePath(`/shops/${igHandle}`)
-  return { success: true as const }
 }
 
-export async function removeReview(formData: FormData) {
+export async function removeReview(formData: FormData): Promise<void> {
   const reviewId = formData.get('review_id') as string
   const igHandle = formData.get('ig_handle') as string
-  if (!reviewId) return { error: 'Missing review ID.' }
+  if (!reviewId) throw new Error('Missing review ID.')
 
   const admin = await requireAdmin()
-  if (!admin) return { error: 'Unauthorised.' }
+  if (!admin) throw new Error('Unauthorised.')
 
   const adminClient = createAdminClient()
   const { error } = await adminClient.from('reviews').delete().eq('id', reviewId)
 
-  if (error) return { error: error.message }
+  if (error) throw new Error(error.message)
 
   revalidatePath('/admin/reviews')
   if (igHandle) revalidatePath(`/shops/${igHandle}`)
-  return { success: true as const }
 }
 
 const ALLOWED_EMOJIS = ['👍', '❤️', '🔥', '😮', '💯', '😂']

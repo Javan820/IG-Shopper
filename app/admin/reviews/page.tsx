@@ -22,7 +22,7 @@ export default async function AdminReviewsPage() {
     .eq('status', 'pending')
     .order('created_at', { ascending: true })
 
-  const flags = (flagData ?? []) as FlagWithRelations[]
+  const flags = (flagData ?? []) as unknown as FlagWithRelations[]
 
   return (
     <div>

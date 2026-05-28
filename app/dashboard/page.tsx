@@ -165,7 +165,7 @@ export default async function DashboardPage() {
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
 
-  const claims = (claimsData ?? []) as ClaimWithShop[]
+  const claims = (claimsData ?? []) as unknown as ClaimWithShop[]
 
   if (claims.length > 0) {
     return (

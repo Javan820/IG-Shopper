@@ -92,7 +92,7 @@ export async function updatePassword(_: unknown, formData: FormData) {
   redirect('/')
 }
 
-const VALID_TIER_IDS = [...TIERS.map((t) => t.id), 'admin' as const] as [TierId, ...TierId[]]
+const VALID_TIER_IDS = [...TIERS.map((t) => t.id), 'admin' as const] as unknown as [TierId, ...TierId[]]
 
 const ProfileSchema = z.object({
   display_name: z

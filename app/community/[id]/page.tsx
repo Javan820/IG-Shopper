@@ -65,7 +65,7 @@ export default async function ThreadDetailPage({ params }: PageProps) {
 
       <div className="rounded-xl border overflow-hidden">
         <ThreadCard
-          thread={thread as ThreadWithProfile}
+          thread={thread as unknown as ThreadWithProfile}
           currentUserId={user?.id ?? null}
           isLiked={isLiked}
           isAdmin={isAdmin}
@@ -92,7 +92,7 @@ export default async function ThreadDetailPage({ params }: PageProps) {
 
         <NestedReplySection
           threadId={id}
-          initialReplies={(replies ?? []) as ThreadReplyWithProfile[]}
+          initialReplies={(replies ?? []) as unknown as ThreadReplyWithProfile[]}
           currentUserId={user?.id ?? null}
           isAdmin={isAdmin}
         />

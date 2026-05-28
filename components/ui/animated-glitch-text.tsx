@@ -33,7 +33,7 @@ export function GlitchText({
 
   React.useEffect(() => {
     const d = glitchDurationMs / 1000
-    const t = [0, 0.2, 0.5, 0.8, 1] as const
+    const t: number[] = [0, 0.2, 0.5, 0.8, 1]
 
     const burst = () => {
       Promise.all([

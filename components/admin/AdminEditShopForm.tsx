@@ -84,7 +84,7 @@ export function AdminEditShopForm({ shop }: { shop: Shop }) {
     startCoverTransition(async () => {
       const result = await uploadShopCover(formData)
       if (result && 'error' in result) {
-        setCoverError(result.error)
+        setCoverError(result.error ?? null)
       } else {
         setCoverSuccess(true)
         setPendingFile(null)

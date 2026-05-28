@@ -84,7 +84,7 @@ export default async function CommunityPage({ searchParams }: PageProps) {
           threads.map((thread) => (
             <ThreadCard
               key={thread.id}
-              thread={thread as ThreadWithProfile}
+              thread={thread as unknown as ThreadWithProfile}
               currentUserId={user?.id ?? null}
               isLiked={likedIds.has(thread.id)}
               isAdmin={isAdmin}

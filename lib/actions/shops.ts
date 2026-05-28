@@ -164,36 +164,34 @@ async function requireAdmin() {
   return profile?.role === 'admin' ? user : null
 }
 
-export async function approveShop(formData: FormData) {
+export async function approveShop(formData: FormData): Promise<void> {
   const shopId = formData.get('shop_id') as string
-  if (!shopId) return { error: 'Missing shop ID.' }
+  if (!shopId) throw new Error('Missing shop ID.')
 
   const admin = await requireAdmin()
-  if (!admin) return { error: 'Unauthorised.' }
+  if (!admin) throw new Error('Unauthorised.')
 
   const adminClient = createAdminClient()
   const payload: TablesUpdate<'shops'> = { status: 'approved', is_active: true }
   const { error } = await adminClient.from('shops').update(payload as never).eq('id', shopId)
-  if (error) return { error: error.message }
+  if (error) throw new Error(error.message)
 
   revalidatePath('/admin/shops')
-  return { success: true as const }
 }
 
-export async function rejectShop(formData: FormData) {
+export async function rejectShop(formData: FormData): Promise<void> {
   const shopId = formData.get('shop_id') as string
-  if (!shopId) return { error: 'Missing shop ID.' }
+  if (!shopId) throw new Error('Missing shop ID.')
 
   const admin = await requireAdmin()
-  if (!admin) return { error: 'Unauthorised.' }
+  if (!admin) throw new Error('Unauthorised.')
 
   const adminClient = createAdminClient()
   const payload: TablesUpdate<'shops'> = { status: 'rejected', is_active: false }
   const { error } = await adminClient.from('shops').update(payload as never).eq('id', shopId)
-  if (error) return { error: error.message }
+  if (error) throw new Error(error.message)
 
   revalidatePath('/admin/shops')
-  return { success: true as const }
 }
 
 const AdminUpdateShopSchema = z.object({

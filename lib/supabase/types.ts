@@ -46,6 +46,7 @@ export type Database = {
           display_tier?: string | null
           created_at?: string
         }
+        Relationships: []
       }
       shops: {
         Row: {
@@ -121,6 +122,7 @@ export type Database = {
           ig_handle_status?: 'unchecked' | 'active' | 'broken'
           ig_handle_checked_at?: string | null
         }
+        Relationships: []
       }
       reviews: {
         Row: {
@@ -159,6 +161,7 @@ export type Database = {
           image_urls?: string[]
           created_at?: string
         }
+        Relationships: []
       }
       shop_claims: {
         Row: {
@@ -185,6 +188,7 @@ export type Database = {
           status?: 'pending' | 'approved' | 'rejected'
           created_at?: string
         }
+        Relationships: []
       }
       saved_shops: {
         Row: {
@@ -205,6 +209,7 @@ export type Database = {
           shop_id?: string
           created_at?: string
         }
+        Relationships: []
       }
       review_helpful: {
         Row: {
@@ -219,6 +224,7 @@ export type Database = {
           user_id?: string
           review_id?: string
         }
+        Relationships: []
       }
       review_flags: {
         Row: {
@@ -245,6 +251,7 @@ export type Database = {
           status?: 'pending' | 'dismissed' | 'actioned'
           created_at?: string
         }
+        Relationships: []
       }
       review_reactions: {
         Row: {
@@ -265,6 +272,7 @@ export type Database = {
           emoji?: string
           created_at?: string
         }
+        Relationships: []
       }
       shop_reactions: {
         Row: {
@@ -288,6 +296,7 @@ export type Database = {
           reaction?: 'recommend' | 'neutral' | 'avoid'
           created_at?: string
         }
+        Relationships: []
       }
       user_follows: {
         Row: {
@@ -305,6 +314,7 @@ export type Database = {
           following_id?: string
           created_at?: string
         }
+        Relationships: []
       }
       notifications: {
         Row: {
@@ -340,6 +350,7 @@ export type Database = {
           read_at?: string | null
           created_at?: string
         }
+        Relationships: []
       }
       push_subscriptions: {
         Row: {
@@ -366,6 +377,7 @@ export type Database = {
           auth?: string
           created_at?: string
         }
+        Relationships: []
       }
       notification_preferences: {
         Row: {
@@ -386,6 +398,7 @@ export type Database = {
           new_follower?: boolean
           review_reaction?: boolean
         }
+        Relationships: []
       }
       threads: {
         Row: {
@@ -418,6 +431,7 @@ export type Database = {
           reply_count?: number
           created_at?: string
         }
+        Relationships: []
       }
       thread_likes: {
         Row: {
@@ -435,6 +449,7 @@ export type Database = {
           user_id?: string
           created_at?: string
         }
+        Relationships: []
       }
       thread_replies: {
         Row: {
@@ -464,6 +479,7 @@ export type Database = {
           parent_reply_id?: string | null
           created_at?: string
         }
+        Relationships: []
       }
       thread_reactions: {
         Row: {
@@ -484,6 +500,7 @@ export type Database = {
           emoji?: string
           created_at?: string
         }
+        Relationships: []
       }
       thread_reply_reactions: {
         Row: {
@@ -504,6 +521,7 @@ export type Database = {
           emoji?: string
           created_at?: string
         }
+        Relationships: []
       }
     }
     Views: Record<never, never>

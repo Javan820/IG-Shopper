@@ -17,7 +17,7 @@ export default async function AdminClaimsPage() {
     .eq('status', 'pending')
     .order('created_at', { ascending: true })
 
-  const claims = (pending ?? []) as ClaimWithRelations[]
+  const claims = (pending ?? []) as unknown as ClaimWithRelations[]
 
   return (
     <div>

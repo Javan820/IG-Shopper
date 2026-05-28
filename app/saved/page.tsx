@@ -18,7 +18,7 @@ export default async function SavedPage() {
     .order('created_at', { ascending: false })
 
   const shops = (savedRows ?? [])
-    .map((row) => row.shops as Shop | null)
+    .map((row) => row.shops as unknown as Shop | null)
     .filter((s): s is Shop => s !== null)
 
   const shopIds = shops.map((s) => s.id)

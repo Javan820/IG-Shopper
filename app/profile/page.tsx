@@ -130,7 +130,7 @@ export default async function ProfilePage({
       .order('created_at', { ascending: false })
       .limit(20)
     savedShops = (
-      (data ?? []) as Array<{
+      (data ?? []) as unknown as Array<{
         shops: Omit<ShopCardData, 'avg_rating' | 'review_count'> | null
       }>
     )
