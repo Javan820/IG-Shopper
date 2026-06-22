@@ -1,23 +1,15 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import { ShutdownButton } from '@/components/admin/ShutdownButton'
+import { RestartButton } from '@/components/admin/RestartButton'
+import { getCurrentUser, getUserRole } from '@/lib/supabase/auth'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getCurrentUser()
 
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single()
-
-  if (profile?.role !== 'admin') redirect('/')
+  if ((await getUserRole()) !== 'admin') redirect('/')
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -33,6 +25,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             <Link href="/admin/shops" className="text-muted-foreground transition-colors hover:text-foreground">
               Shops
             </Link>
+            <Link href="/admin/discovery" className="text-muted-foreground transition-colors hover:text-foreground">
+              Discovery
+            </Link>
             <Link href="/admin/claims" className="text-muted-foreground transition-colors hover:text-foreground">
               Claims
             </Link>
@@ -46,6 +41,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         </div>
         {children}
       </div>
+      <RestartButton />
       <ShutdownButton />
     </div>
   )

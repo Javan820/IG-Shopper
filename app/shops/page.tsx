@@ -1,32 +1,71 @@
 import { Suspense } from 'react'
+import Link from 'next/link'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { ShopGrid } from '@/components/shop/ShopGrid'
 import { ShopFilters } from '@/components/shop/ShopFilters'
 import { SearchBar } from '@/components/common/SearchBar'
 import { LoadingSkeleton } from '@/components/common/LoadingSkeleton'
-import type { Shop, Review, ShopCardData } from '@/lib/supabase/types'
+import type { ShopCardData } from '@/lib/supabase/types'
+
+const PAGE_SIZE = 24
 
 interface FilterParams {
   q?: string
   category?: string
   location?: string
   rating?: string
-  payment?: string
   ships?: string
   sort?: string
+  page?: string
 }
 
 interface PageProps {
   searchParams: Promise<FilterParams>
 }
 
+// Row shape returned by the browse query — exactly the ShopCard fields plus
+// the denormalised aggregate columns (avg_rating arrives as numeric).
+interface ShopRow {
+  id: string
+  name: string
+  ig_handle: string
+  category: string | null
+  location: string | null
+  cover_image_url: string | null
+  is_verified: boolean
+  is_claimed: boolean
+  avg_rating: number | string | null
+  review_count: number
+}
+
+function buildPageHref(params: FilterParams, page: number): string {
+  const sp = new URLSearchParams()
+  if (params.q) sp.set('q', params.q)
+  if (params.category) sp.set('category', params.category)
+  if (params.location) sp.set('location', params.location)
+  if (params.rating) sp.set('rating', params.rating)
+  if (params.ships) sp.set('ships', params.ships)
+  if (params.sort) sp.set('sort', params.sort)
+  if (page > 1) sp.set('page', String(page))
+  const qs = sp.toString()
+  return qs ? `/shops?${qs}` : '/shops'
+}
+
 async function ShopResults({ params }: { params: FilterParams }) {
-  const { q, category, location, rating, payment, ships, sort } = params
+  const { q, category, location, rating, ships, sort } = params
   const supabase = await createClient()
+
+  const pageNum = Math.max(1, parseInt(params.page ?? '1', 10) || 1)
+  const from = (pageNum - 1) * PAGE_SIZE
+  const to = from + PAGE_SIZE - 1
 
   let query = supabase
     .from('shops')
-    .select('*')
+    .select(
+      'id, name, ig_handle, category, location, cover_image_url, is_verified, is_claimed, avg_rating, review_count',
+      { count: 'exact' }
+    )
     .eq('status', 'approved')
     .eq('is_active', true)
 
@@ -39,16 +78,36 @@ async function ShopResults({ params }: { params: FilterParams }) {
   }
   if (category) query = query.eq('category', category)
   if (location) query = query.eq('location', location)
-  if (payment) query = query.contains('payment_methods', [payment])
   if (ships) query = query.contains('ships_to', [ships])
-  if (!sort || sort === 'newest') {
+
+  // Min-rating filter now runs in SQL against the denormalised column.
+  // gte naturally excludes shops with NULL avg_rating (no reviews yet).
+  const minRating = rating ? parseFloat(rating) : null
+  if (minRating !== null && !isNaN(minRating)) {
+    query = query.gte('avg_rating', minRating)
+  }
+
+  // Sorting in SQL — backed by shops_avg_rating_idx / shops_review_count_idx.
+  if (sort === 'highest_rated') {
+    query = query
+      .order('avg_rating', { ascending: false, nullsFirst: false })
+      .order('review_count', { ascending: false })
+  } else if (sort === 'most_reviewed') {
+    query = query
+      .order('review_count', { ascending: false })
+      .order('created_at', { ascending: false })
+  } else {
     query = query.order('created_at', { ascending: false })
   }
 
-  const { data } = await query
-  const shopRows = (data ?? []) as Shop[]
+  query = query.range(from, to)
 
-  let shops: ShopCardData[] = shopRows.map((s) => ({
+  const { data, count } = await query
+  const rows = (data ?? []) as ShopRow[]
+  const total = count ?? 0
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+
+  const shops: ShopCardData[] = rows.map((s) => ({
     id: s.id,
     name: s.name,
     ig_handle: s.ig_handle,
@@ -57,41 +116,9 @@ async function ShopResults({ params }: { params: FilterParams }) {
     cover_image_url: s.cover_image_url,
     is_verified: s.is_verified,
     is_claimed: s.is_claimed,
-    avg_rating: null,
-    review_count: 0,
+    avg_rating: s.avg_rating === null ? null : Number(s.avg_rating),
+    review_count: s.review_count,
   }))
-
-  if (shopRows.length > 0) {
-    const shopIds = shopRows.map((s) => s.id)
-    const { data: reviewData } = await supabase
-      .from('reviews')
-      .select('*')
-      .in('shop_id', shopIds)
-
-    const statsMap = new Map<string, { sum: number; count: number }>()
-    for (const r of (reviewData ?? []) as Review[]) {
-      const prev = statsMap.get(r.shop_id) ?? { sum: 0, count: 0 }
-      statsMap.set(r.shop_id, { sum: prev.sum + (r.rating as number), count: prev.count + 1 })
-    }
-
-    shops = shops.map((s) => {
-      const stats = statsMap.get(s.id)
-      return stats
-        ? { ...s, avg_rating: stats.sum / stats.count, review_count: stats.count }
-        : s
-    })
-  }
-
-  const minRating = rating ? parseFloat(rating) : null
-  if (minRating !== null && !isNaN(minRating)) {
-    shops = shops.filter((s) => s.avg_rating !== null && s.avg_rating >= minRating)
-  }
-
-  if (sort === 'highest_rated') {
-    shops.sort((a, b) => (b.avg_rating ?? 0) - (a.avg_rating ?? 0))
-  } else if (sort === 'most_reviewed') {
-    shops.sort((a, b) => b.review_count - a.review_count)
-  }
 
   if (!shops.length) {
     return (
@@ -105,10 +132,72 @@ async function ShopResults({ params }: { params: FilterParams }) {
   return (
     <>
       <p className="mb-6 text-sm text-muted-foreground">
-        {shops.length} shop{shops.length !== 1 ? 's' : ''} found
+        {total} shop{total !== 1 ? 's' : ''} found
+        {totalPages > 1 && ` · page ${pageNum} of ${totalPages}`}
       </p>
       <ShopGrid shops={shops} />
+
+      {totalPages > 1 && (
+        <nav
+          className="mt-10 flex items-center justify-center gap-3"
+          aria-label="Pagination"
+        >
+          <PageLink
+            href={buildPageHref(params, pageNum - 1)}
+            disabled={pageNum <= 1}
+            rel="prev"
+          >
+            <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+            Previous
+          </PageLink>
+          <span className="text-sm text-muted-foreground">
+            {pageNum} / {totalPages}
+          </span>
+          <PageLink
+            href={buildPageHref(params, pageNum + 1)}
+            disabled={pageNum >= totalPages}
+            rel="next"
+          >
+            Next
+            <ChevronRight className="h-4 w-4" aria-hidden="true" />
+          </PageLink>
+        </nav>
+      )}
     </>
+  )
+}
+
+function PageLink({
+  href,
+  disabled,
+  rel,
+  children,
+}: {
+  href: string
+  disabled: boolean
+  rel: 'prev' | 'next'
+  children: React.ReactNode
+}) {
+  const base =
+    'inline-flex items-center gap-1 rounded-lg border px-4 py-2 text-sm font-medium transition-colors'
+  if (disabled) {
+    return (
+      <span
+        aria-disabled="true"
+        className={`${base} cursor-not-allowed border-border text-muted-foreground/50`}
+      >
+        {children}
+      </span>
+    )
+  }
+  return (
+    <Link
+      href={href}
+      rel={rel}
+      className={`${base} border-border text-foreground hover:border-primary hover:text-primary`}
+    >
+      {children}
+    </Link>
   )
 }
 
@@ -141,7 +230,10 @@ export default async function ShopsPage({ searchParams }: PageProps) {
             <ShopFilters currentFilters={params} />
           </aside>
           <main className="min-w-0 flex-1">
-            <Suspense fallback={<LoadingSkeleton count={6} />}>
+            <Suspense
+              key={JSON.stringify(params)}
+              fallback={<LoadingSkeleton count={6} />}
+            >
               <ShopResults params={params} />
             </Suspense>
           </main>

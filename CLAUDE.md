@@ -146,6 +146,19 @@ lib/
 
 ---
 
+## Debugging & Validation Rule
+
+When fixing a bug or solving a problem, **do not mark the task complete** until:
+
+1. Identify the root cause — explain why the bug occurred, not just what changed.
+2. Apply the fix.
+3. Validate — read back the modified file/section and confirm the fix is correct as written.
+4. Check for side effects — consider whether the change could break adjacent logic (filters, scoring, DB inserts, etc.).
+
+Only then report the task as done. Never say "run a job to verify" as a substitute for validation you can do directly.
+
+---
+
 ## Coding Standards
 
 - TypeScript everywhere — no `any` types

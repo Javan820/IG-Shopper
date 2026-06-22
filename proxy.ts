@@ -25,7 +25,11 @@ export async function proxy(request: NextRequest) {
     }
   )
 
-  await supabase.auth.getUser()
+  // getClaims() verifies the JWT locally (no auth-server round-trip) when the
+  // project uses asymmetric signing keys, and still triggers a session refresh
+  // — writing refreshed cookies via setAll above — when the token is stale.
+  // With legacy HS256 keys it transparently falls back to a getUser() call.
+  await supabase.auth.getClaims()
 
   return supabaseResponse
 }

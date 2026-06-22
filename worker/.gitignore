@@ -1,0 +1,13 @@
+# Secrets and saved auth — never commit
+.env
+sessions/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Runtime log
+worker.log
+diag.log
+diag.err

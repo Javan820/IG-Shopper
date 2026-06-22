@@ -14,7 +14,7 @@ async function FeaturedShops() {
   const supabase = await createClient()
   const { data } = await supabase
     .from('shops')
-    .select('*')
+    .select('id, name, ig_handle, category, location, cover_image_url, is_verified, is_claimed, avg_rating, review_count')
     .eq('status', 'approved')
     .eq('is_active', true)
     .order('created_at', { ascending: false })
@@ -29,8 +29,8 @@ async function FeaturedShops() {
     cover_image_url: s.cover_image_url,
     is_verified: s.is_verified,
     is_claimed: s.is_claimed,
-    avg_rating: null,
-    review_count: 0,
+    avg_rating: s.avg_rating === null ? null : Number(s.avg_rating),
+    review_count: s.review_count,
   }))
 
   if (!shops.length) {

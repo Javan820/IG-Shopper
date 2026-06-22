@@ -14,6 +14,11 @@ function ShopCard({ shop, showRejectButton = true }: { shop: Shop; showRejectBut
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="font-semibold">{shop.name}</h2>
+            {shop.source === 'discovery' && (
+              <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-700">
+                Auto-discovered
+              </span>
+            )}
             <a
               href={`https://instagram.com/${shop.ig_handle}`}
               target="_blank"
@@ -28,9 +33,6 @@ function ShopCard({ shop, showRejectButton = true }: { shop: Shop; showRejectBut
             {shop.category && <span>{shop.category}</span>}
             {shop.location && <span>· {shop.location}</span>}
             {shop.ships_to?.length ? <span>· Ships to: {shop.ships_to.join(', ')}</span> : null}
-            {shop.payment_methods?.length ? (
-              <span>· Pays: {shop.payment_methods.join(', ')}</span>
-            ) : null}
           </div>
 
           {shop.description && (

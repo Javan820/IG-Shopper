@@ -13,7 +13,7 @@ export default async function SavedPage() {
 
   const { data: savedRows } = await supabase
     .from('saved_shops')
-    .select('shop_id, shops ( id, name, ig_handle, category, location, cover_image_url, is_verified, is_claimed )')
+    .select('shop_id, shops ( id, name, ig_handle, category, location, cover_image_url, is_verified, is_claimed, avg_rating, review_count )')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
 
@@ -21,37 +21,20 @@ export default async function SavedPage() {
     .map((row) => row.shops as unknown as Shop | null)
     .filter((s): s is Shop => s !== null)
 
-  const shopIds = shops.map((s) => s.id)
-
-  const reviewMap: Record<string, { count: number; total: number }> = {}
-  if (shopIds.length > 0) {
-    const { data: reviews } = await supabase
-      .from('reviews')
-      .select('shop_id, rating')
-      .in('shop_id', shopIds)
-
-    for (const r of reviews ?? []) {
-      if (!reviewMap[r.shop_id]) reviewMap[r.shop_id] = { count: 0, total: 0 }
-      reviewMap[r.shop_id].count++
-      reviewMap[r.shop_id].total += r.rating
-    }
-  }
-
-  const shopCards: ShopCardData[] = shops.map((shop) => {
-    const stats = reviewMap[shop.id]
-    return {
-      id: shop.id,
-      name: shop.name,
-      ig_handle: shop.ig_handle,
-      category: shop.category,
-      location: shop.location,
-      cover_image_url: shop.cover_image_url,
-      is_verified: shop.is_verified,
-      is_claimed: shop.is_claimed,
-      avg_rating: stats && stats.count > 0 ? stats.total / stats.count : null,
-      review_count: stats?.count ?? 0,
-    }
-  })
+  // Aggregate rating comes from the denormalised columns (maintained by the
+  // apply_review_stats trigger) — joined in above, no separate reviews query.
+  const shopCards: ShopCardData[] = shops.map((shop) => ({
+    id: shop.id,
+    name: shop.name,
+    ig_handle: shop.ig_handle,
+    category: shop.category,
+    location: shop.location,
+    cover_image_url: shop.cover_image_url,
+    is_verified: shop.is_verified,
+    is_claimed: shop.is_claimed,
+    avg_rating: shop.avg_rating === null ? null : Number(shop.avg_rating),
+    review_count: shop.review_count,
+  }))
 
   return (
     <div className="min-h-screen bg-slate-50">

@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
-import { CATEGORIES, LOCATIONS, PAYMENT_METHODS, SHIPS_TO } from '@/lib/constants'
+import { CATEGORIES, LOCATIONS, SHIPS_TO } from '@/lib/constants'
 import type { TablesInsert, TablesUpdate } from '@/lib/supabase/types'
 
 const SubmitShopSchema = z.object({
@@ -22,7 +22,6 @@ const SubmitShopSchema = z.object({
   location: z.enum(LOCATIONS),
   description: z.string().max(500, 'Description must be 500 characters or fewer.').optional(),
   website_url: z.string().url('Please enter a valid URL.').optional(),
-  payment_methods: z.array(z.string()).optional(),
   ships_to: z.enum(SHIPS_TO).optional(),
 })
 
@@ -33,8 +32,6 @@ export async function submitShop(_: unknown, formData: FormData) {
   } = await supabase.auth.getUser()
   if (!user) return { error: 'You must be signed in to submit a shop.' }
 
-  const rawPaymentMethods = formData.getAll('payment_methods') as string[]
-
   const parsed = SubmitShopSchema.safeParse({
     ig_handle: formData.get('ig_handle'),
     name: formData.get('name'),
@@ -42,7 +39,6 @@ export async function submitShop(_: unknown, formData: FormData) {
     location: formData.get('location') || undefined,
     description: formData.get('description') || undefined,
     website_url: formData.get('website_url') || undefined,
-    payment_methods: rawPaymentMethods.length ? rawPaymentMethods : undefined,
     ships_to: formData.get('ships_to') || undefined,
   })
 
@@ -69,7 +65,6 @@ export async function submitShop(_: unknown, formData: FormData) {
     location: parsed.data.location,
     description: parsed.data.description ?? null,
     website_url: parsed.data.website_url ?? null,
-    payment_methods: parsed.data.payment_methods?.length ? parsed.data.payment_methods : null,
     ships_to: parsed.data.ships_to ? [parsed.data.ships_to] : null,
     submitted_by: user.id,
   }
@@ -90,7 +85,6 @@ const UpdateShopSchema = z.object({
   sub_location: z.string().max(100).optional(),
   description: z.string().max(500).optional(),
   website_url: z.string().url('Please enter a valid URL.').optional(),
-  payment_methods: z.array(z.string()).optional(),
   ships_to: z.enum(SHIPS_TO).optional(),
 })
 
@@ -101,8 +95,6 @@ export async function updateShop(_: unknown, formData: FormData) {
   } = await supabase.auth.getUser()
   if (!user) return { error: 'Sign in to edit your shop.' }
 
-  const rawPaymentMethods = formData.getAll('payment_methods') as string[]
-
   const parsed = UpdateShopSchema.safeParse({
     shop_id: formData.get('shop_id'),
     ig_handle: formData.get('ig_handle'),
@@ -112,7 +104,6 @@ export async function updateShop(_: unknown, formData: FormData) {
     sub_location: formData.get('sub_location') || undefined,
     description: formData.get('description') || undefined,
     website_url: formData.get('website_url') || undefined,
-    payment_methods: rawPaymentMethods.length ? rawPaymentMethods : undefined,
     ships_to: formData.get('ships_to') || undefined,
   })
 
@@ -135,7 +126,6 @@ export async function updateShop(_: unknown, formData: FormData) {
     location: parsed.data.location,
     sub_location: parsed.data.sub_location ?? null,
     website_url: parsed.data.website_url ?? null,
-    payment_methods: parsed.data.payment_methods?.length ? parsed.data.payment_methods : null,
     ships_to: parsed.data.ships_to ? [parsed.data.ships_to] : null,
   }
 
@@ -207,7 +197,6 @@ const AdminUpdateShopSchema = z.object({
   sub_location: z.string().max(100).optional(),
   description: z.string().max(500).optional(),
   website_url: z.string().url('Please enter a valid URL.').optional(),
-  payment_methods: z.array(z.string()).optional(),
   ships_to: z.enum(SHIPS_TO).optional(),
   status: z.enum(['pending', 'approved', 'rejected']),
   is_verified: z.coerce.boolean(),
@@ -218,8 +207,6 @@ export async function adminUpdateShop(_: unknown, formData: FormData) {
   const admin = await requireAdmin()
   if (!admin) return { error: 'Unauthorised.' }
 
-  const rawPaymentMethods = formData.getAll('payment_methods') as string[]
-
   const parsed = AdminUpdateShopSchema.safeParse({
     shop_id: formData.get('shop_id'),
     ig_handle: formData.get('ig_handle'),
@@ -229,7 +216,6 @@ export async function adminUpdateShop(_: unknown, formData: FormData) {
     sub_location: formData.get('sub_location') || undefined,
     description: formData.get('description') || undefined,
     website_url: formData.get('website_url') || undefined,
-    payment_methods: rawPaymentMethods.length ? rawPaymentMethods : undefined,
     ships_to: formData.get('ships_to') || undefined,
     status: formData.get('status'),
     is_verified: formData.get('is_verified') === 'true',
@@ -259,7 +245,6 @@ export async function adminUpdateShop(_: unknown, formData: FormData) {
     location: parsed.data.location,
     sub_location: parsed.data.sub_location ?? null,
     website_url: parsed.data.website_url ?? null,
-    payment_methods: parsed.data.payment_methods?.length ? parsed.data.payment_methods : null,
     ships_to: parsed.data.ships_to ? [parsed.data.ships_to] : null,
     status: parsed.data.status,
     is_verified: parsed.data.is_verified,

@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { submitShop } from '@/lib/actions/shops'
-import { CATEGORIES, LOCATIONS, PAYMENT_METHODS, SHIPS_TO } from '@/lib/constants'
+import { CATEGORIES, LOCATIONS, SHIPS_TO } from '@/lib/constants'
 
 type State = { error: string } | null
 
@@ -96,23 +96,6 @@ export function SubmitForm() {
             <option key={s} value={s}>{s}</option>
           ))}
         </select>
-      </div>
-
-      <div className="space-y-2">
-        <Label>Payment Methods</Label>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {PAYMENT_METHODS.map((method) => (
-            <label key={method} className="flex cursor-pointer items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                name="payment_methods"
-                value={method}
-                className="h-4 w-4 rounded border-input accent-primary"
-              />
-              {method}
-            </label>
-          ))}
-        </div>
       </div>
 
       <Button type="submit" className="w-full" disabled={pending}>

@@ -40,9 +40,10 @@ async function ShopReviews({ shop, userId }: { shop: Shop; userId: string | null
 
   const { data: reviewData } = await supabase
     .from('reviews')
-    .select('*')
+    .select('id, shop_id, user_id, rating, title, body, is_verified_buyer, helpful_count, created_at')
     .eq('shop_id', shop.id)
     .order('created_at', { ascending: false })
+    .limit(50)
 
   const rawReviews = reviewData ?? []
 
@@ -51,7 +52,7 @@ async function ShopReviews({ shop, userId }: { shop: Shop; userId: string | null
     const userIds = [...new Set(rawReviews.map((r) => r.user_id as string))]
     const { data: profileData } = await supabase
       .from('profiles')
-      .select('*')
+      .select('id, display_name, avatar_url, review_count, role, tier_override, display_tier')
       .in('id', userIds)
     profileMap = new Map((profileData ?? []).map((p) => [p.id, { display_name: p.display_name, avatar_url: p.avatar_url, review_count: p.review_count, role: p.role, tier_override: p.tier_override, display_tier: p.display_tier }]))
   }
@@ -153,12 +154,10 @@ export default async function ShopProfilePage({ params }: PageProps) {
   }
 
   const [
-    { data: ratingRows },
     { data: savedData },
     { data: reactionRows },
     { data: userReactionData },
   ] = await Promise.all([
-    supabase.from('reviews').select('rating').eq('shop_id', shop.id),
     user
       ? supabase
           .from('saved_shops')
@@ -178,12 +177,10 @@ export default async function ShopProfilePage({ params }: PageProps) {
       : Promise.resolve({ data: null }),
   ])
 
-  const ratingList = (ratingRows ?? []) as { rating: number }[]
-  const review_count = ratingList.length
-  const avg_rating =
-    review_count > 0
-      ? ratingList.reduce((sum, r) => sum + r.rating, 0) / review_count
-      : null
+  // Aggregate rating comes from the denormalised columns on the shop row
+  // (maintained by the apply_review_stats trigger) — no extra query needed.
+  const review_count = shop.review_count
+  const avg_rating = shop.avg_rating === null ? null : Number(shop.avg_rating)
   const isBookmarked = !!savedData
 
   const reactionCounts: Record<ReactionType, number> = { recommend: 0, neutral: 0, avoid: 0 }

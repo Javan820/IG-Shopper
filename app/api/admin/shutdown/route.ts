@@ -16,6 +16,6 @@ export async function POST() {
 
   if (profile?.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  setTimeout(() => process.exit(0), 200)
+  setTimeout(() => process.exit(0), 500)
   return NextResponse.json({ ok: true })
 }

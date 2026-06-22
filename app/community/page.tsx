@@ -20,15 +20,6 @@ export const metadata = {
 export default async function CommunityPage({ searchParams }: PageProps) {
   const { category } = await searchParams
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  let isAdmin = false
-  if (user) {
-    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-    isAdmin = profile?.role === 'admin'
-  }
 
   const baseQuery = supabase
     .from('threads')
@@ -36,19 +27,28 @@ export default async function CommunityPage({ searchParams }: PageProps) {
     .order('created_at', { ascending: false })
     .limit(50)
 
-  const { data: threads } = await (category ? baseQuery.eq('category', category) : baseQuery)
+  const [{ data: { user } }, { data: threadsData }] = await Promise.all([
+    supabase.auth.getUser(),
+    category ? baseQuery.eq('category', category) : baseQuery,
+  ])
 
+  const threads = threadsData ?? []
+
+  let isAdmin = false
   let likedIds = new Set<string>()
-  if (user && threads?.length) {
-    const { data: likes } = await supabase
-      .from('thread_likes')
-      .select('thread_id')
-      .eq('user_id', user.id)
-      .in(
-        'thread_id',
-        threads.map((t) => t.id),
-      )
-    likedIds = new Set(likes?.map((l) => l.thread_id) ?? [])
+  if (user) {
+    const [profileResult, likesResult] = await Promise.all([
+      supabase.from('profiles').select('role').eq('id', user.id).single(),
+      threads.length > 0
+        ? supabase
+            .from('thread_likes')
+            .select('thread_id')
+            .eq('user_id', user.id)
+            .in('thread_id', threads.map((t) => t.id))
+        : Promise.resolve({ data: null }),
+    ])
+    isAdmin = profileResult.data?.role === 'admin'
+    likedIds = new Set(likesResult.data?.map((l) => l.thread_id) ?? [])
   }
 
   return (
@@ -76,7 +76,7 @@ export default async function CommunityPage({ searchParams }: PageProps) {
           </div>
         )}
 
-        {!threads?.length ? (
+        {!threads.length ? (
           <div className="p-10 text-center text-muted-foreground">
             No threads yet{category ? ` in "${category}"` : ''}. Be the first to post!
           </div>

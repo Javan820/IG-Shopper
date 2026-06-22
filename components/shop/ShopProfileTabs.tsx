@@ -164,21 +164,6 @@ export function ShopProfileTabs({
             </div>
           )}
 
-          {shop.payment_methods && shop.payment_methods.length > 0 && (
-            <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Payment Methods
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {shop.payment_methods.map((pm) => (
-                  <Badge key={pm} variant="outline">
-                    {pm}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-          )}
-
           {shop.ships_to && shop.ships_to.length > 0 && (
             <div>
               <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">

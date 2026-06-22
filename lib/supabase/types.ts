@@ -73,6 +73,12 @@ export type Database = {
           search_vector: string | null
           ig_handle_status: 'unchecked' | 'active' | 'broken'
           ig_handle_checked_at: string | null
+          source: 'user' | 'discovery'
+          // Maintained by the apply_review_stats() trigger on reviews.
+          // avg_rating is a GENERATED column — never write these directly.
+          review_count: number
+          rating_sum: number
+          avg_rating: number | null
         }
         Insert: {
           id?: string
@@ -95,6 +101,9 @@ export type Database = {
           claimed_by?: string | null
           created_at?: string
           updated_at?: string
+          ig_handle_status?: 'unchecked' | 'active' | 'broken'
+          ig_handle_checked_at?: string | null
+          source?: 'user' | 'discovery'
           // search_vector is GENERATED — omit from Insert
         }
         Update: {
@@ -121,6 +130,49 @@ export type Database = {
           // search_vector is GENERATED — omit from Update
           ig_handle_status?: 'unchecked' | 'active' | 'broken'
           ig_handle_checked_at?: string | null
+          source?: 'user' | 'discovery'
+        }
+        Relationships: []
+      }
+      shop_discovery_jobs: {
+        Row: {
+          id: string
+          category: string
+          target_count: number
+          status: 'queued' | 'running' | 'done' | 'error'
+          requested_by: string | null
+          found_count: number
+          inserted_count: number
+          error: string | null
+          created_at: string
+          started_at: string | null
+          finished_at: string | null
+        }
+        Insert: {
+          id?: string
+          category: string
+          target_count?: number
+          status?: 'queued' | 'running' | 'done' | 'error'
+          requested_by?: string | null
+          found_count?: number
+          inserted_count?: number
+          error?: string | null
+          created_at?: string
+          started_at?: string | null
+          finished_at?: string | null
+        }
+        Update: {
+          id?: string
+          category?: string
+          target_count?: number
+          status?: 'queued' | 'running' | 'done' | 'error'
+          requested_by?: string | null
+          found_count?: number
+          inserted_count?: number
+          error?: string | null
+          created_at?: string
+          started_at?: string | null
+          finished_at?: string | null
         }
         Relationships: []
       }
@@ -545,6 +597,7 @@ export type TablesUpdate<T extends keyof Database['public']['Tables']> =
 // Convenience named types — use these in components and server actions
 // ---------------------------------------------------------------------------
 export type Shop        = Tables<'shops'>
+export type ShopDiscoveryJob = Tables<'shop_discovery_jobs'>
 export type Review      = Tables<'reviews'>
 export type Profile     = Tables<'profiles'>
 export type ShopClaim   = Tables<'shop_claims'>

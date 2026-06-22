@@ -2,7 +2,8 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Bell } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
-import { ProfileForm } from './ProfileForm'
+import { EditProfileDialog } from './EditProfileDialog'
+import { ChangePasswordDialog } from './ChangePasswordDialog'
 import { UserTierBadge } from '@/components/common/UserTierBadge'
 import { RatingStars } from '@/components/review/RatingStars'
 import { ShopCard } from '@/components/shop/ShopCard'
@@ -124,18 +125,25 @@ export default async function ProfilePage({
     const { data } = await supabase
       .from('saved_shops')
       .select(
-        'shops(id, name, ig_handle, category, location, cover_image_url, is_verified, is_claimed)'
+        'shops(id, name, ig_handle, category, location, cover_image_url, is_verified, is_claimed, avg_rating, review_count)'
       )
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
       .limit(20)
     savedShops = (
       (data ?? []) as unknown as Array<{
-        shops: Omit<ShopCardData, 'avg_rating' | 'review_count'> | null
+        shops: (Omit<ShopCardData, 'avg_rating' | 'review_count'> & {
+          avg_rating: number | string | null
+          review_count: number
+        }) | null
       }>
     )
       .filter((row) => row.shops !== null)
-      .map((row) => ({ ...row.shops!, avg_rating: null, review_count: 0 }))
+      .map((row) => ({
+        ...row.shops!,
+        avg_rating: row.shops!.avg_rating === null ? null : Number(row.shops!.avg_rating),
+        review_count: row.shops!.review_count,
+      }))
   }
 
   const isAdmin = profile.role === 'admin'
@@ -154,7 +162,6 @@ export default async function ProfilePage({
   const tabItems = [
     { id: 'reviews', label: 'My Reviews', count: profile.review_count },
     { id: 'saved', label: 'Saved Shops' },
-    { id: 'settings', label: 'Settings' },
   ] as const
 
   return (
@@ -212,9 +219,8 @@ export default async function ProfilePage({
 
             {/* Actions */}
             <div className="flex flex-row gap-2 sm:flex-col">
-              <Button variant="outline" size="sm" asChild>
-                <Link href="/profile?tab=settings">Edit Profile</Link>
-              </Button>
+              <EditProfileDialog profile={profile} />
+              <ChangePasswordDialog />
               <Button variant="ghost" size="sm" asChild>
                 <Link href="/profile/notifications" className="flex items-center gap-1.5">
                   <Bell className="h-4 w-4" aria-hidden="true" />
@@ -331,12 +337,6 @@ export default async function ProfilePage({
           </div>
         )}
 
-        {tab === 'settings' && (
-          <div className="rounded-xl border bg-white/80 p-6 shadow-sm backdrop-blur-sm">
-            <h2 className="mb-5 text-lg font-semibold">Edit Profile</h2>
-            <ProfileForm profile={profile} />
-          </div>
-        )}
       </div>
     </div>
   )

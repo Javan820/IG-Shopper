@@ -59,7 +59,7 @@ export async function signout() {
 }
 
 export async function requestPasswordReset(_: unknown, formData: FormData) {
-  const email = (formData.get('email') as string) ?? ''
+  const email = (formData.get('email') as string)?.trim() ?? ''
   if (!email) return { error: 'Email is required.' }
 
   const supabase = await createClient()
@@ -67,8 +67,17 @@ export async function requestPasswordReset(_: unknown, formData: FormData) {
     redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback?next=/reset-password`,
   })
 
-  if (error) return { error: error.message }
-  return { success: true as const }
+  if (error) {
+    const message = error.message.toLowerCase()
+    if (message.includes('rate limit') || message.includes('after') || message.includes('seconds')) {
+      return {
+        error:
+          'A reset link was requested recently. Please wait about a minute, then try again — and check your spam folder.',
+      }
+    }
+    return { error: error.message }
+  }
+  return { success: true as const, email, ts: Date.now() }
 }
 
 const ResetPasswordSchema = z.object({
@@ -90,6 +99,22 @@ export async function updatePassword(_: unknown, formData: FormData) {
   const { error } = await supabase.auth.updateUser({ password: parsed.data.password })
   if (error) return { error: error.message }
   redirect('/')
+}
+
+export async function changePassword(_: unknown, formData: FormData) {
+  const parsed = ResetPasswordSchema.safeParse({
+    password: formData.get('password'),
+    confirm: formData.get('confirm'),
+  })
+  if (!parsed.success) return { error: parsed.error.issues[0].message }
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not signed in.' }
+
+  const { error } = await supabase.auth.updateUser({ password: parsed.data.password })
+  if (error) return { error: error.message }
+  return { success: true as const }
 }
 
 const VALID_TIER_IDS = [...TIERS.map((t) => t.id), 'admin' as const] as unknown as [TierId, ...TierId[]]

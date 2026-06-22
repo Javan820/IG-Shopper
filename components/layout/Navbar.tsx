@@ -1,31 +1,78 @@
+import { Suspense } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { createClient } from '@/lib/supabase/server'
+import { getCurrentUser, getUserRole } from '@/lib/supabase/auth'
 import { signout } from '@/lib/actions/auth'
 import { Button } from '@/components/ui/button'
 import { MobileNav } from '@/components/layout/MobileNav'
 import { NotificationBell } from '@/components/layout/NotificationBell'
 
-export async function Navbar() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+async function NavbarAuth() {
+  const user = await getCurrentUser()
 
   const displayName = user?.user_metadata?.display_name as string | undefined
 
-  let isAdmin = false
-  if (user) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
-    isAdmin = profile?.role === 'admin'
-  }
+  const isAdmin = user ? (await getUserRole()) === 'admin' : false
 
   return (
-    <header className="sticky top-0 z-50 border-b border-[--border] bg-[#FFFBF4]/85 backdrop-blur-md">
+    <>
+      {/* Admin link (desktop) */}
+      {isAdmin && (
+        <Link
+          href="/admin"
+          className="hidden rounded-lg px-3 py-1.5 text-sm font-semibold text-[--primary] transition-colors hover:bg-[--accent] md:block"
+        >
+          Admin
+        </Link>
+      )}
+      {/* Saved link — only shown when logged in */}
+      {user && (
+        <Link
+          href="/saved"
+          className="hidden rounded-lg px-3 py-1.5 text-sm font-medium text-[--muted-foreground] transition-colors hover:bg-[--secondary] hover:text-[--foreground] md:block"
+        >
+          Saved
+        </Link>
+      )}
+      <MobileNav isLoggedIn={!!user} />
+      {user && <NotificationBell />}
+      {user ? (
+        <>
+          <Button variant="ghost" size="sm" asChild className="hidden sm:inline-flex">
+            <Link href="/profile">{displayName ?? 'Profile'}</Link>
+          </Button>
+          <form action={signout}>
+            <Button type="submit" variant="outline" size="sm" className="border-[--border] text-[--muted-foreground] hover:text-[--foreground]">
+              Log Out
+            </Button>
+          </form>
+        </>
+      ) : (
+        <>
+          <Button variant="ghost" size="sm" asChild className="hidden sm:inline-flex">
+            <Link href="/login">Log In</Link>
+          </Button>
+          <Button size="sm" asChild className="rounded-full px-5 font-semibold shadow-sm">
+            <Link href="/signup">Sign Up</Link>
+          </Button>
+        </>
+      )}
+    </>
+  )
+}
+
+function NavbarAuthFallback() {
+  return (
+    <>
+      <div className="hidden sm:block h-8 w-16 rounded-lg bg-slate-200 animate-pulse" />
+      <div className="h-8 w-20 rounded-full bg-slate-200 animate-pulse" />
+    </>
+  )
+}
+
+export function Navbar() {
+  return (
+    <header className="sticky top-0 z-50 border-b border-[--border] bg-[#FFFBF4]">
       {/* Brand accent stripe */}
       <div className="h-[3px] bg-gradient-to-r from-[#C73E1D] via-orange-400 to-amber-300" />
 
@@ -51,12 +98,12 @@ export async function Navbar() {
             </span>
           </Link>
 
+          {/* Static nav links — always visible, no auth needed */}
           <div className="hidden items-center gap-1 md:flex">
             {[
               { href: '/shops', label: 'Browse' },
               { href: '/submit', label: 'Submit a Shop' },
               { href: '/community', label: 'Community' },
-              ...(user ? [{ href: '/saved', label: 'Saved' }] : []),
             ].map((link) => (
               <Link
                 key={link.href}
@@ -66,41 +113,13 @@ export async function Navbar() {
                 {link.label}
               </Link>
             ))}
-            {isAdmin && (
-              <Link
-                href="/admin"
-                className="rounded-lg px-3 py-1.5 text-sm font-semibold text-[--primary] transition-colors hover:bg-[--accent]"
-              >
-                Admin
-              </Link>
-            )}
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          <MobileNav isLoggedIn={!!user} />
-          {user && <NotificationBell />}
-          {user ? (
-            <>
-              <Button variant="ghost" size="sm" asChild className="hidden sm:inline-flex">
-                <Link href="/profile">{displayName ?? 'Profile'}</Link>
-              </Button>
-              <form action={signout}>
-                <Button type="submit" variant="outline" size="sm" className="border-[--border] text-[--muted-foreground] hover:text-[--foreground]">
-                  Log Out
-                </Button>
-              </form>
-            </>
-          ) : (
-            <>
-              <Button variant="ghost" size="sm" asChild className="hidden sm:inline-flex">
-                <Link href="/login">Log In</Link>
-              </Button>
-              <Button size="sm" asChild className="rounded-full px-5 font-semibold shadow-sm">
-                <Link href="/signup">Sign Up</Link>
-              </Button>
-            </>
-          )}
+          <Suspense fallback={<NavbarAuthFallback />}>
+            <NavbarAuth />
+          </Suspense>
         </div>
       </nav>
     </header>

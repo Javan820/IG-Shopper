@@ -32,10 +32,18 @@ export function GlitchText({
   const c3 = useAnimation()
 
   React.useEffect(() => {
+    // Honour reduced-motion: skip the perpetual animation entirely.
+    if (typeof window !== "undefined" &&
+        window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+      return
+    }
+
     const d = glitchDurationMs / 1000
     const t: number[] = [0, 0.2, 0.5, 0.8, 1]
 
     const burst = () => {
+      // Don't repaint when the tab is hidden — wasted CPU/GPU work.
+      if (document.hidden) return
       Promise.all([
         c1.start({ x: [-4, 4, -2, 0, 0], y: [1, -1, 0.5, 0, 0], opacity: [0, 0.82, 0.88, 0.7, 0], transition: { duration: d, times: t, ease: "easeOut" } }),
         c2.start({ x: [4, -4, 2, 0, 0],  y: [-1, 1, -0.5, 0, 0], opacity: [0, 0.82, 0.88, 0.7, 0], transition: { duration: d, times: t, ease: "easeOut" } }),

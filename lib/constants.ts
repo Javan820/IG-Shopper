@@ -50,18 +50,6 @@ export const LOCATIONS = [
 
 export type Location = (typeof LOCATIONS)[number]
 
-export const PAYMENT_METHODS = [
-  'PayMe',
-  'FPS',
-  'Bank Transfer',
-  'Stripe',
-  'PayPal',
-  'Crypto',
-  'Cash on Delivery',
-] as const
-
-export type PaymentMethod = (typeof PAYMENT_METHODS)[number]
-
 export const SHIPS_TO = [
   'Hong Kong Only',
   'Asia',

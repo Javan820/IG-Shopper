@@ -1,11 +1,10 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, type CSSProperties } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { Star, MapPin, BadgeCheck } from 'lucide-react'
 import { CategoryBadge } from '@/components/common/CategoryBadge'
 import type { ShopCardData } from '@/lib/supabase/types'
-import { GlowCard } from '@/components/ui/spotlight-card'
 
 const COVER_GRADIENTS: Record<string, { from: string; to: string }> = {
   'Fashion & Clothing':      { from: '#7C3AED', to: '#DB2777' },
@@ -42,7 +41,10 @@ function hexToHsl(hex: string): { h: number; s: number } {
   return { h: (h / 6) * 360, s: s * 100 }
 }
 
+const colorCache = new Map<string, { hue: number; saturation: number } | null>()
+
 async function extractImageColors(url: string): Promise<{ hue: number; saturation: number } | null> {
+  if (colorCache.has(url)) return colorCache.get(url)!
   try {
     const response = await fetch(`/_next/image?url=${encodeURIComponent(url)}&w=16&q=75`)
     if (!response.ok) return null
@@ -76,8 +78,11 @@ async function extractImageColors(url: string): Promise<{ hue: number; saturatio
     }
     const avgSat = (satTotal / count) * 100
     const hue = satWeightSum > 0 ? hueSum / satWeightSum : 0
-    return { hue, saturation: Math.min(avgSat * 2.8, 100) }
+    const result = { hue, saturation: Math.min(avgSat * 2.8, 100) }
+    colorCache.set(url, result)
+    return result
   } catch {
+    colorCache.set(url, null)
     return null
   }
 }
@@ -92,22 +97,58 @@ export function ShopCard({ shop }: ShopCardProps) {
   const categoryHsl = hexToHsl(grad.from)
   const [glowHue, setGlowHue] = useState(categoryHsl.h)
   const [glowSaturation, setGlowSaturation] = useState(categoryHsl.s)
+  const cardRef = useRef<HTMLAnchorElement>(null)
 
   useEffect(() => {
-    if (!shop.cover_image_url) return
-    extractImageColors(shop.cover_image_url).then((result) => {
-      if (result) {
-        setGlowHue(result.hue)
-        setGlowSaturation(result.saturation)
-      }
-    })
+    const url = shop.cover_image_url
+    const node = cardRef.current
+    if (!url || !node) return
+
+    // The runtime glow-tint reads each cover image through a canvas (fetch →
+    // createImageBitmap → getImageData). On touch devices these fire in a burst
+    // as the grid scrolls into view — and iOS Safari lacks requestIdleCallback,
+    // so they run on the scroll frame and stall it. Skip on non-fine pointers;
+    // the category-derived hue already gives the card a sensible glow.
+    if (!window.matchMedia?.('(hover: hover) and (pointer: fine)').matches) return
+
+    let cancelled = false
+    const ric = window.requestIdleCallback ?? ((cb: () => void) => setTimeout(cb, 1))
+
+    const run = () => {
+      ric(() => {
+        if (cancelled) return
+        extractImageColors(url).then((result) => {
+          if (!cancelled && result) {
+            setGlowHue(result.hue)
+            setGlowSaturation(result.saturation)
+          }
+        })
+      })
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          observer.disconnect()
+          run()
+        }
+      },
+      { rootMargin: '200px' }
+    )
+    observer.observe(node)
+
+    return () => {
+      cancelled = true
+      observer.disconnect()
+    }
   }, [shop.cover_image_url])
 
   return (
-    <GlowCard customSize bare glowHue={glowHue} glowSaturation={glowSaturation} className="w-full rounded-2xl">
     <Link
+      ref={cardRef}
       href={`/shops/${shop.ig_handle}`}
-      className="group block overflow-hidden rounded-2xl border border-[--border] bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-black/10"
+      style={{ '--glow': `hsl(${glowHue}deg ${glowSaturation}% 55% / 0.35)` } as CSSProperties}
+      className="group block overflow-hidden rounded-2xl border border-[--border] bg-white shadow-[0_0_20px_2px_var(--glow)] transition-transform duration-300 hover:-translate-y-1"
     >
       {/* Cover image */}
       <div className="relative h-44 overflow-hidden">
@@ -170,6 +211,5 @@ export function ShopCard({ shop }: ShopCardProps) {
         </div>
       </div>
     </Link>
-    </GlowCard>
   )
 }

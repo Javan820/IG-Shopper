@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Filter, ChevronDown, ChevronUp, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { CATEGORIES, LOCATIONS, PAYMENT_METHODS, SHIPS_TO } from '@/lib/constants'
+import { CATEGORIES, LOCATIONS, SHIPS_TO } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 
 interface FilterState {
@@ -12,7 +12,6 @@ interface FilterState {
   category?: string
   location?: string
   rating?: string
-  payment?: string
   ships?: string
   sort?: string
 }
@@ -44,7 +43,6 @@ export function ShopFilters({ currentFilters }: ShopFiltersProps) {
       category: currentFilters.category,
       location: currentFilters.location,
       rating: currentFilters.rating,
-      payment: currentFilters.payment,
       ships: currentFilters.ships,
       sort: currentFilters.sort,
       [key]: value,
@@ -65,7 +63,6 @@ export function ShopFilters({ currentFilters }: ShopFiltersProps) {
     currentFilters.category,
     currentFilters.location,
     currentFilters.rating,
-    currentFilters.payment,
     currentFilters.ships,
   ].filter(Boolean).length
 
@@ -164,26 +161,6 @@ export function ShopFilters({ currentFilters }: ShopFiltersProps) {
               }
             >
               {opt.label}
-            </TagButton>
-          ))}
-        </div>
-      </div>
-
-      {/* Payment Methods */}
-      <div>
-        <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-          Payment
-        </p>
-        <div className="flex flex-wrap gap-2">
-          {PAYMENT_METHODS.map((pm) => (
-            <TagButton
-              key={pm}
-              active={currentFilters.payment === pm}
-              onClick={() =>
-                updateFilter('payment', currentFilters.payment === pm ? undefined : pm)
-              }
-            >
-              {pm}
             </TagButton>
           ))}
         </div>

@@ -16,39 +16,43 @@ interface PageProps {
 export default async function ThreadDetailPage({ params }: PageProps) {
   const { id } = await params
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
 
-  let isAdmin = false
-  if (user) {
-    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-    isAdmin = profile?.role === 'admin'
-  }
-
-  const { data: thread } = await supabase
-    .from('threads')
-    .select('*, profiles!user_id(display_name, avatar_url, role, review_count, tier_override, display_tier)')
-    .eq('id', id)
-    .single()
+  // Batch 1: auth + thread + replies in parallel
+  const [
+    { data: { user } },
+    { data: thread },
+    { data: replies },
+  ] = await Promise.all([
+    supabase.auth.getUser(),
+    supabase
+      .from('threads')
+      .select('*, profiles!user_id(display_name, avatar_url, role, review_count, tier_override, display_tier)')
+      .eq('id', id)
+      .single(),
+    supabase
+      .from('thread_replies')
+      .select('*, profiles!user_id(display_name, avatar_url, role, review_count, tier_override, display_tier)')
+      .eq('thread_id', id)
+      .order('created_at', { ascending: true }),
+  ])
 
   if (!thread) notFound()
 
-  const { data: replies } = await supabase
-    .from('thread_replies')
-    .select('*, profiles!user_id(display_name, avatar_url, role, review_count, tier_override, display_tier)')
-    .eq('thread_id', id)
-    .order('created_at', { ascending: true })
-
+  // Batch 2 (if user): admin check + like status in parallel
+  let isAdmin = false
   let isLiked = false
   if (user) {
-    const { data: like } = await supabase
-      .from('thread_likes')
-      .select('thread_id')
-      .eq('thread_id', id)
-      .eq('user_id', user.id)
-      .maybeSingle()
-    isLiked = !!like
+    const [profileResult, likeResult] = await Promise.all([
+      supabase.from('profiles').select('role').eq('id', user.id).single(),
+      supabase
+        .from('thread_likes')
+        .select('thread_id')
+        .eq('thread_id', id)
+        .eq('user_id', user.id)
+        .maybeSingle(),
+    ])
+    isAdmin = profileResult.data?.role === 'admin'
+    isLiked = !!likeResult.data
   }
 
   const replyCount = replies?.length ?? 0

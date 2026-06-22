@@ -37,21 +37,10 @@ export default async function DashboardPage() {
 
     const recentReviews = (recentReviewData ?? []) as Review[]
 
-    const { count: reviewCount } = await supabase
-      .from('reviews')
-      .select('*', { count: 'exact', head: true })
-      .eq('shop_id', shop.id)
-
-    const { data: ratingRows } = await supabase
-      .from('reviews')
-      .select('rating')
-      .eq('shop_id', shop.id)
-
-    const allRatings = (ratingRows ?? []) as { rating: number }[]
-    const avgRating =
-      allRatings.length > 0
-        ? allRatings.reduce((sum, r) => sum + r.rating, 0) / allRatings.length
-        : null
+    // Totals come from the denormalised columns on the shop row (maintained by
+    // the apply_review_stats trigger) — no extra count/rating queries needed.
+    const reviewCount = shop.review_count
+    const avgRating = shop.avg_rating === null ? null : Number(shop.avg_rating)
 
     return (
       <div className="space-y-6">

@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState, useState, useRef } from 'react'
+import { useActionState, useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -15,12 +15,17 @@ type State = { error: string } | { success: true } | null
 
 interface ProfileFormProps {
   profile: Profile
+  onSuccess?: () => void
 }
 
 const ADMIN_STYLE_OPTION = { id: 'admin' as const, label: 'Admin Style' }
 
-export function ProfileForm({ profile }: ProfileFormProps) {
+export function ProfileForm({ profile, onSuccess }: ProfileFormProps) {
   const [state, action, pending] = useActionState<State, FormData>(updateProfile, null)
+
+  useEffect(() => {
+    if (state && 'success' in state) onSuccess?.()
+  }, [state, onSuccess])
   const [preview, setPreview] = useState<string | null>(profile.avatar_url)
   const fileRef = useRef<HTMLInputElement>(null)
 
