@@ -37,6 +37,9 @@ No Firebase, Prisma, tRPC, or Redux.
 
 ## Security Rules — Non-negotiable
 
+> See the **Prime Directive** at the top of the root `CLAUDE.md` — security & the user's data outrank task completion. The rules below are the IGShop specifics.
+
+- **Never stage/commit secrets.** `.env`, `recovery-codes.txt`, `.vercel/`, `worker/.env`, `worker/sessions/` are gitignored — never `git add -A` blindly; review staged files first. (A near-miss already happened with `vercel/recovery-codes.txt`.)
 - `SUPABASE_SERVICE_ROLE_KEY` bypasses **all** RLS. It must only appear in `lib/supabase/admin.ts` and server-side code (Server Actions, API routes). Never in Client Components.
 - `lib/supabase/admin.ts` and `lib/supabase/server.ts` both start with `import 'server-only'` — the build fails if either is imported in a `'use client'` file.
 - Never add `NEXT_PUBLIC_` prefix to `SUPABASE_SERVICE_ROLE_KEY`.

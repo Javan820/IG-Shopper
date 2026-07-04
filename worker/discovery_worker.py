@@ -18,6 +18,7 @@ Run:
 """
 
 import asyncio
+import base64
 import ctypes
 import datetime as dt
 import os
@@ -108,6 +109,30 @@ def existing_handles(db: Client) -> set[str]:
     return {_normalize_handle(r['ig_handle']) for r in (res.data or [])}
 
 
+COVER_BUCKET = 'shop-covers'
+_EXT_BY_TYPE = {'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp'}
+
+
+def upload_cover(db: Client, shop_id: str, b64: str, content_type: str | None) -> str | None:
+    """Upload a base64 image to the shop-covers bucket as `{shop_id}/cover.{ext}`
+    and return its public URL. Returns None on any failure (cover is optional)."""
+    ctype = (content_type or 'image/jpeg').split(';')[0].strip().lower()
+    ext = _EXT_BY_TYPE.get(ctype)
+    if ext is None:
+        # Storage bucket only allows jpeg/png/webp; coerce anything else to jpeg.
+        ctype, ext = 'image/jpeg', 'jpg'
+    path = f'{shop_id}/cover.{ext}'
+    try:
+        data = base64.b64decode(b64)
+        db.storage.from_(COVER_BUCKET).upload(
+            path, data, {'content-type': ctype, 'upsert': 'true'}
+        )
+        return db.storage.from_(COVER_BUCKET).get_public_url(path)
+    except Exception as e:
+        _log(f'    ! cover upload failed for {shop_id}: {e}')
+        return None
+
+
 def insert_shops(db: Client, category: str, shops: list[dict]) -> int:
     """Insert discovered shops as pending. Returns count actually inserted."""
     inserted = 0
@@ -129,12 +154,24 @@ def insert_shops(db: Client, category: str, shops: list[dict]) -> int:
             'ig_handle_checked_at': _now(),
         }
         try:
-            db.table('shops').insert(payload).execute()
+            res = db.table('shops').insert(payload).execute()
             inserted += 1
             _log(f'  + @{handle} — {payload["name"]}')
         except Exception as e:
             # Most likely a unique-handle race; skip and continue.
             _log(f'  ! skip @{handle}: {e}')
+            continue
+
+        # Set the profile picture as the cover image (best-effort).
+        shop_id = (res.data or [{}])[0].get('id')
+        cover_b64 = shop.get('cover_b64')
+        if shop_id and cover_b64:
+            url = upload_cover(db, shop_id, cover_b64, shop.get('cover_type'))
+            if url:
+                try:
+                    db.table('shops').update({'cover_image_url': url}).eq('id', shop_id).execute()
+                except Exception as e:
+                    _log(f'    ! cover update failed for @{handle}: {e}')
     return inserted
 
 

@@ -69,12 +69,19 @@ async function ShopResults({ params }: { params: FilterParams }) {
     .eq('status', 'approved')
     .eq('is_active', true)
 
-  const trimmedQ = q?.trim()
-  if (trimmedQ) {
-    query = query.textSearch('search_vector', trimmedQ, {
-      type: 'websearch',
-      config: 'english',
-    })
+  // Substring search across name, handle, and description. PostgREST's `or`
+  // filter splits on commas/parens, so strip those (plus ilike wildcards)
+  // from user input before wrapping the term in our own wildcards.
+  const safeQ = q
+    ?.trim()
+    .replace(/[%,()*\\]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (safeQ) {
+    const pattern = `*${safeQ}*`
+    query = query.or(
+      `name.ilike.${pattern},ig_handle.ilike.${pattern},description.ilike.${pattern}`
+    )
   }
   if (category) query = query.eq('category', category)
   if (location) query = query.eq('location', location)
@@ -218,7 +225,7 @@ export default async function ShopsPage({ searchParams }: PageProps) {
               )}
             </div>
             <div className="w-full sm:w-80">
-              <SearchBar defaultValue={params.q} />
+              <SearchBar defaultValue={params.q} live />
             </div>
           </div>
         </div>

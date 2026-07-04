@@ -12,6 +12,7 @@ session created by `setup_session.py`.
 """
 
 import asyncio
+import base64
 import random
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
@@ -258,15 +259,7 @@ class IgShopAgent:
         self, page: Page, category: str, target_count: int, known_handles: set[str]
     ) -> list[dict]:
         # Confirm the session is still logged in.
-        await page.goto('https://www.instagram.com/', wait_until='domcontentloaded', timeout=30000)
-        await asyncio.sleep(2)
-        body = (await page.evaluate('() => document.body.innerText.toLowerCase()')) or ''
-        if 'log into instagram' in body or 'log in to instagram' in body:
-            raise SessionExpiredError(
-                'Instagram session expired. Re-run: python setup_session.py'
-            )
-        if '/consent/' in page.url:
-            await self._dismiss_consent(page)
+        await self._ensure_logged_in(page)
 
         terms = CATEGORY_TERMS.get(category, DEFAULT_TERMS)
 
@@ -362,12 +355,22 @@ class IgShopAgent:
                 _agent_log(f'@{handle}: skip — score={score} (KOL/brand/not a shop)')
                 continue
 
+            # Grab the profile picture to use as the shop's cover image. Fetched
+            # in-browser now (the signed CDN URL expires); the worker uploads the
+            # bytes to Supabase Storage on insert.
+            cover = None
+            pic_url = enriched.get('profile_pic_url')
+            if pic_url:
+                cover = await self._fetch_image_b64(page, pic_url)
+
             _agent_log(f'@{handle}: KEEP score={score} | "{name}"')
             shops.append({
                 'ig_handle': handle,
                 'name': name,
                 'description': bio or None,
                 'website_url': website_url,
+                'cover_b64': cover['b64'] if cover else None,
+                'cover_type': cover['type'] if cover else None,
             })
             await asyncio.sleep(self._jittered(self.enrich_delay))
 
@@ -441,6 +444,15 @@ class IgShopAgent:
             if ts and (latest_post_ts is None or int(ts) > latest_post_ts):
                 latest_post_ts = int(ts)
 
+        # Profile picture — prefer the HD variant. These are signed scontent CDN
+        # URLs that expire, so callers download the bytes immediately rather than
+        # storing the URL.
+        profile_pic_url = (
+            (user.get('profile_pic_url_hd') or '').strip()
+            or (user.get('profile_pic_url') or '').strip()
+            or None
+        )
+
         return {
             'name': (user.get('full_name') or '').strip() or handle,
             'description': bio[:500] or None,
@@ -449,6 +461,7 @@ class IgShopAgent:
             'post_count': post_count,
             'latest_post_ts': latest_post_ts,
             'user_id': (user.get('id') or '').strip() or None,
+            'profile_pic_url': profile_pic_url,
         }
 
     async def _latest_post_ts(self, page: Page, user_id: str) -> int | None:
@@ -477,6 +490,97 @@ class IgShopAgent:
             if ts and (latest is None or int(ts) > latest):
                 latest = int(ts)
         return latest
+
+    async def _fetch_image_b64(self, page: Page, url: str) -> dict | None:
+        """Download an image through the logged-in page (so IG's CDN sees the
+        session cookies/headers) and return it base64-encoded. IG profile-pic
+        URLs are signed and hotlink-protected. We fetch through the browser
+        context's request API (Playwright's APIRequestContext) rather than an
+        in-page `fetch()`: the request carries the session cookies but is NOT
+        subject to the page's same-origin/CORS policy, so reading the CDN bytes
+        actually succeeds. Returns {'b64', 'type'}."""
+        try:
+            resp = await page.context.request.get(
+                url, headers={'referer': 'https://www.instagram.com/'}, timeout=20000
+            )
+            if not resp.ok:
+                return None
+            body = await resp.body()
+            ctype = (resp.headers or {}).get('content-type', 'image/jpeg')
+        except Exception:
+            return None
+        if not body:
+            return None
+        return {'b64': base64.b64encode(body).decode('ascii'), 'type': ctype}
+
+    async def _ensure_logged_in(self, page: Page) -> None:
+        """Confirm the saved session is still authenticated; raise if not."""
+        await page.goto('https://www.instagram.com/', wait_until='domcontentloaded', timeout=30000)
+        await asyncio.sleep(2)
+        body = (await page.evaluate('() => document.body.innerText.toLowerCase()')) or ''
+        if 'log into instagram' in body or 'log in to instagram' in body:
+            raise SessionExpiredError(
+                'Instagram session expired. Re-run: python setup_session.py'
+            )
+        if '/consent/' in page.url:
+            await self._dismiss_consent(page)
+
+    async def fetch_profile_pics(self, handles: list[str]) -> dict[str, dict]:
+        """For each handle, fetch its current profile picture bytes.
+
+        Returns {handle: {'b64', 'type'}} for handles whose picture was
+        retrieved. Used to backfill cover images for shops already in the DB.
+        """
+        session_path = self._session_path()
+        out: dict[str, dict] = {}
+
+        async with async_playwright() as pw:
+            browser = await pw.chromium.launch(
+                headless=self.headless,
+                args=[
+                    '--disable-blink-features=AutomationControlled',
+                    '--no-sandbox',
+                    '--disable-dev-shm-usage',
+                ],
+            )
+            context = await browser.new_context(
+                viewport={'width': 1280, 'height': 900},
+                user_agent=(
+                    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+                    'AppleWebKit/537.36 (KHTML, like Gecko) '
+                    'Chrome/124.0.0.0 Safari/537.36'
+                ),
+                locale='en-US',
+                storage_state=session_path,
+            )
+            page = await context.new_page()
+            if _HAS_STEALTH:
+                await _stealth_async(page)
+
+            try:
+                await self._ensure_logged_in(page)
+                for handle in handles:
+                    enriched = await self._enrich(page, handle)
+                    if not enriched:
+                        _agent_log(f'@{handle}: skip — enrich failed (rate-limited or gone)')
+                        await asyncio.sleep(self._jittered(self.enrich_delay))
+                        continue
+                    pic_url = enriched.get('profile_pic_url')
+                    if not pic_url:
+                        _agent_log(f'@{handle}: skip — no profile picture')
+                        await asyncio.sleep(self._jittered(self.enrich_delay))
+                        continue
+                    pic = await self._fetch_image_b64(page, pic_url)
+                    if pic:
+                        out[handle] = pic
+                        _agent_log(f'@{handle}: got profile picture')
+                    else:
+                        _agent_log(f'@{handle}: skip — could not download profile picture')
+                    await asyncio.sleep(self._jittered(self.enrich_delay))
+            finally:
+                await browser.close()
+
+        return out
 
     async def _dismiss_consent(self, page: Page) -> None:
         for _ in range(8):

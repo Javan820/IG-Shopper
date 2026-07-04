@@ -1,40 +1,45 @@
-import Link from 'next/link'
+import {
+  Shirt,
+  Sparkles,
+  UtensilsCrossed,
+  Palette,
+  Gem,
+  Sofa,
+  BookOpen,
+  Leaf,
+  Clock,
+  Download,
+  ArrowUpRight,
+  type LucideIcon,
+} from 'lucide-react'
 import { CATEGORIES, type Category } from '@/lib/constants'
+import { CategoryList, type Category as CategoryItem } from '@/components/ui/category-list'
 
-const CATEGORY_META: Record<Category, { emoji: string; bg: string; hover: string; text: string }> = {
-  'Fashion & Clothing':      { emoji: '👗', bg: 'bg-violet-500', hover: 'hover:bg-violet-600', text: 'text-white' },
-  'Beauty & Skincare':       { emoji: '✨', bg: 'bg-rose-500',   hover: 'hover:bg-rose-600',   text: 'text-white' },
-  'Food & Drinks':           { emoji: '🍜', bg: 'bg-orange-500', hover: 'hover:bg-orange-600', text: 'text-white' },
-  'Art & Prints':            { emoji: '🎨', bg: 'bg-sky-500',    hover: 'hover:bg-sky-600',    text: 'text-white' },
-  'Jewellery & Accessories': { emoji: '💎', bg: 'bg-amber-500',  hover: 'hover:bg-amber-600',  text: 'text-white' },
-  'Home & Lifestyle':        { emoji: '🪴', bg: 'bg-emerald-500',hover: 'hover:bg-emerald-600',text: 'text-white' },
-  'Books & Stationery':      { emoji: '📚', bg: 'bg-indigo-500', hover: 'hover:bg-indigo-600', text: 'text-white' },
-  'Health & Wellness':       { emoji: '🌿', bg: 'bg-teal-500',   hover: 'hover:bg-teal-600',   text: 'text-white' },
-  'Vintage & Second-hand':   { emoji: '🧸', bg: 'bg-stone-500',  hover: 'hover:bg-stone-600',  text: 'text-white' },
-  'Digital Products':        { emoji: '⚡', bg: 'bg-purple-600', hover: 'hover:bg-purple-700', text: 'text-white' },
-  'Other':                   { emoji: '🛍️', bg: 'bg-slate-500',  hover: 'hover:bg-slate-600',  text: 'text-white' },
+const CATEGORY_META: Record<Category, { subtitle: string; icon: LucideIcon }> = {
+  'Fashion & Clothing':      { subtitle: 'Local labels, streetwear & made-to-order pieces', icon: Shirt },
+  'Beauty & Skincare':       { subtitle: 'Indie skincare, makeup & self-care finds',        icon: Sparkles },
+  'Food & Drinks':           { subtitle: 'Home bakes, snacks & artisan drinks',             icon: UtensilsCrossed },
+  'Art & Prints':            { subtitle: 'Original art, prints & illustrations',            icon: Palette },
+  'Jewellery & Accessories': { subtitle: 'Handmade jewellery & everyday accessories',       icon: Gem },
+  'Home & Lifestyle':        { subtitle: 'Décor, candles & lifestyle goods',                icon: Sofa },
+  'Books & Stationery':      { subtitle: 'Zines, stationery & paper goods',                 icon: BookOpen },
+  'Health & Wellness':       { subtitle: 'Wellness, fitness & natural products',            icon: Leaf },
+  'Vintage & Second-hand':   { subtitle: 'Pre-loved fashion & vintage treasures',           icon: Clock },
+  'Digital Products':        { subtitle: 'Presets, templates & digital downloads',          icon: Download },
+  'Other':                   { subtitle: 'Everything else worth discovering',               icon: ArrowUpRight },
 }
 
 export function CategoryGrid() {
-  const featured = CATEGORIES.filter((c) => c !== 'Other')
+  const items: CategoryItem[] = CATEGORIES.filter((c) => c !== 'Other').map((category) => {
+    const Icon = CATEGORY_META[category].icon
+    return {
+      id: category,
+      title: category,
+      subtitle: CATEGORY_META[category].subtitle,
+      href: `/shops?category=${encodeURIComponent(category)}`,
+      icon: <Icon className="h-7 w-7" />,
+    }
+  })
 
-  return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-      {featured.map((category) => {
-        const meta = CATEGORY_META[category]
-        return (
-          <Link
-            key={category}
-            href={`/shops?category=${encodeURIComponent(category)}`}
-            className={`group flex items-center gap-3 rounded-2xl px-4 py-3.5 transition-all duration-200 ${meta.bg} ${meta.hover} ${meta.text} shadow-sm hover:shadow-md hover:-translate-y-0.5`}
-          >
-            <span className="text-2xl leading-none" role="img" aria-hidden="true">
-              {meta.emoji}
-            </span>
-            <span className="text-sm font-semibold leading-tight">{category}</span>
-          </Link>
-        )
-      })}
-    </div>
-  )
+  return <CategoryList categories={items} className="max-w-4xl p-0" />
 }
