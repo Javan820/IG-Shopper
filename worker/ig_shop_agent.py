@@ -582,6 +582,162 @@ class IgShopAgent:
 
         return out
 
+    async def _timeline_posts(self, page: Page, handle: str, limit: int) -> list[dict] | None:
+        """Latest posts for a handle, newest first. Tries web_profile_info's
+        timeline edges, falling back to the feed API when edges are empty
+        (a common IG response shape). Returns None when the profile is
+        unreachable or private; [] when it genuinely has no posts.
+        Each post: {shortcode, caption, is_video, taken_at, thumb_url}."""
+        try:
+            result = await page.evaluate(
+                """async ({ h, appId }) => {
+                    const res = await fetch(
+                        '/api/v1/users/web_profile_info/?username=' + encodeURIComponent(h),
+                        { headers: { 'x-ig-app-id': appId }, credentials: 'include' },
+                    );
+                    if (!res.ok) return { status: res.status };
+                    return { status: 200, data: await res.json() };
+                }""",
+                {'h': handle, 'appId': IG_APP_ID},
+            )
+        except Exception:
+            return None
+        if not result or result.get('status') != 200:
+            return None
+        user = ((result.get('data') or {}).get('data') or {}).get('user')
+        if not user or user.get('is_private'):
+            return None
+
+        posts: list[dict] = []
+        edges = (user.get('edge_owner_to_timeline_media') or {}).get('edges') or []
+        for edge in edges:
+            node = edge.get('node') or {}
+            shortcode = (node.get('shortcode') or '').strip()
+            thumb = node.get('display_url') or node.get('thumbnail_src')
+            if not shortcode or not thumb:
+                continue
+            cap_edges = ((node.get('edge_media_to_caption') or {}).get('edges')) or []
+            caption = ((cap_edges[0].get('node') or {}).get('text') or '').strip() if cap_edges else ''
+            posts.append({
+                'shortcode': shortcode,
+                'caption': caption[:500] or None,
+                'is_video': bool(node.get('is_video')),
+                'taken_at': node.get('taken_at_timestamp'),
+                'thumb_url': thumb,
+            })
+
+        if not posts:
+            user_id = (user.get('id') or '').strip()
+            if user_id:
+                posts = await self._feed_posts(page, user_id)
+
+        # Sort newest first — the first timeline edge can be a pinned old post.
+        posts.sort(key=lambda p: p.get('taken_at') or 0, reverse=True)
+        return posts[:limit]
+
+    async def _feed_posts(self, page: Page, user_id: str) -> list[dict]:
+        """Fallback post source via the feed API (same endpoint the recency
+        probe uses); handles image, video and carousel item shapes."""
+        try:
+            result = await page.evaluate(
+                """async ({ uid, appId }) => {
+                    const res = await fetch(
+                        '/api/v1/feed/user/' + encodeURIComponent(uid) + '/?count=12',
+                        { headers: { 'x-ig-app-id': appId }, credentials: 'include' },
+                    );
+                    if (!res.ok) return null;
+                    return await res.json();
+                }""",
+                {'uid': user_id, 'appId': IG_APP_ID},
+            )
+        except Exception:
+            return []
+        posts: list[dict] = []
+        for item in ((result or {}).get('items') or []):
+            shortcode = (item.get('code') or '').strip()
+            if not shortcode:
+                continue
+            media_type = item.get('media_type')
+            target = item
+            if media_type == 8:
+                carousel = item.get('carousel_media') or []
+                target = carousel[0] if carousel else item
+            candidates = ((target.get('image_versions2') or {}).get('candidates')) or []
+            thumb = candidates[0].get('url') if candidates else None
+            if not thumb:
+                continue
+            caption = (((item.get('caption') or {}).get('text')) or '').strip()
+            posts.append({
+                'shortcode': shortcode,
+                'caption': caption[:500] or None,
+                'is_video': media_type == 2 or bool(target.get('video_versions')),
+                'taken_at': item.get('taken_at'),
+                'thumb_url': thumb,
+            })
+        return posts
+
+    async def fetch_latest_posts(
+        self, handles: list[str], limit: int = 10
+    ) -> dict[str, list[dict]]:
+        """For each handle, fetch its latest posts (newest first) with each
+        thumbnail downloaded immediately as base64 — post display_url values
+        are signed scontent CDN URLs that expire, exactly like profile pics,
+        so the bytes must be captured now and rehosted by the caller.
+
+        Returns {handle: [post, ...]} where each post is
+        {shortcode, caption, is_video, taken_at, thumb_b64, thumb_type}.
+        Handles that fail (rate-limited, gone, private) are omitted so the
+        caller can distinguish 'failed' from 'has no posts'."""
+        session_path = self._session_path()
+        out: dict[str, list[dict]] = {}
+
+        async with async_playwright() as pw:
+            browser = await pw.chromium.launch(
+                headless=self.headless,
+                args=[
+                    '--disable-blink-features=AutomationControlled',
+                    '--no-sandbox',
+                    '--disable-dev-shm-usage',
+                ],
+            )
+            context = await browser.new_context(
+                viewport={'width': 1280, 'height': 900},
+                user_agent=(
+                    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+                    'AppleWebKit/537.36 (KHTML, like Gecko) '
+                    'Chrome/124.0.0.0 Safari/537.36'
+                ),
+                locale='en-US',
+                storage_state=session_path,
+            )
+            page = await context.new_page()
+            if _HAS_STEALTH:
+                await _stealth_async(page)
+
+            try:
+                await self._ensure_logged_in(page)
+                for handle in handles:
+                    posts = await self._timeline_posts(page, handle, limit)
+                    await asyncio.sleep(self._jittered(self.enrich_delay))
+                    if posts is None:
+                        _agent_log(f'@{handle}: skip — profile unreachable or private')
+                        continue
+                    kept: list[dict] = []
+                    for post in posts:
+                        thumb = await self._fetch_image_b64(page, post.pop('thumb_url'))
+                        await asyncio.sleep(self._jittered(self.enrich_delay))
+                        if not thumb:
+                            continue
+                        post['thumb_b64'] = thumb['b64']
+                        post['thumb_type'] = thumb['type']
+                        kept.append(post)
+                    out[handle] = kept
+                    _agent_log(f'@{handle}: {len(kept)} post(s) captured')
+            finally:
+                await browser.close()
+
+        return out
+
     async def _dismiss_consent(self, page: Page) -> None:
         for _ in range(8):
             if '/consent/' not in page.url:

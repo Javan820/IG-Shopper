@@ -1,7 +1,6 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
 
 export async function markAllNotificationsRead(_formData: FormData) {
   const supabase = await createClient()
@@ -97,14 +96,4 @@ export async function removePushSubscription(endpoint: string) {
     .eq('endpoint', endpoint)
 
   return { success: true as const }
-}
-
-export async function getUnreadCount(userId: string): Promise<number> {
-  const adminClient = createAdminClient()
-  const { count } = await adminClient
-    .from('notifications')
-    .select('id', { count: 'exact', head: true })
-    .eq('user_id', userId)
-    .is('read_at', null)
-  return count ?? 0
 }

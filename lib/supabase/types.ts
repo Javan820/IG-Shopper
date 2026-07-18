@@ -79,6 +79,11 @@ export type Database = {
           review_count: number
           rating_sum: number
           avg_rating: number | null
+          // Maintained by the apply_reaction_stats() trigger on shop_reactions.
+          // popularity_score is GENERATED (review_count + reaction_count).
+          reaction_count: number
+          recommend_count: number
+          popularity_score: number
         }
         Insert: {
           id?: string
@@ -173,6 +178,60 @@ export type Database = {
           created_at?: string
           started_at?: string | null
           finished_at?: string | null
+        }
+        Relationships: []
+      }
+      discovery_blocklist: {
+        Row: {
+          ig_handle: string
+          reason: string
+          created_at: string
+        }
+        Insert: {
+          ig_handle: string
+          reason?: string
+          created_at?: string
+        }
+        Update: {
+          ig_handle?: string
+          reason?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
+      shop_posts: {
+        Row: {
+          id: string
+          shop_id: string
+          shortcode: string
+          caption: string | null
+          is_video: boolean
+          media_url: string
+          taken_at: string | null
+          position: number
+          fetched_at: string
+        }
+        Insert: {
+          id?: string
+          shop_id: string
+          shortcode: string
+          caption?: string | null
+          is_video?: boolean
+          media_url: string
+          taken_at?: string | null
+          position?: number
+          fetched_at?: string
+        }
+        Update: {
+          id?: string
+          shop_id?: string
+          shortcode?: string
+          caption?: string | null
+          is_video?: boolean
+          media_url?: string
+          taken_at?: string | null
+          position?: number
+          fetched_at?: string
         }
         Relationships: []
       }
@@ -598,6 +657,7 @@ export type TablesUpdate<T extends keyof Database['public']['Tables']> =
 // ---------------------------------------------------------------------------
 export type Shop        = Tables<'shops'>
 export type ShopDiscoveryJob = Tables<'shop_discovery_jobs'>
+export type ShopPost    = Tables<'shop_posts'>
 export type Review      = Tables<'reviews'>
 export type Profile     = Tables<'profiles'>
 export type ShopClaim   = Tables<'shop_claims'>

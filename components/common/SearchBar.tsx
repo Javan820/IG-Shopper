@@ -10,12 +10,14 @@ interface SearchBarProps {
   defaultValue?: string
   placeholder?: string
   live?: boolean
+  variant?: 'default' | 'hero'
 }
 
 export function SearchBar({
   defaultValue = '',
   placeholder = 'Search shops, IG handles, categories…',
   live = false,
+  variant = 'default',
 }: SearchBarProps) {
   const router = useRouter()
   const [query, setQuery] = useState(defaultValue)
@@ -55,6 +57,29 @@ export function SearchBar({
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     router.push(buildHref(query))
+  }
+
+  if (variant === 'hero') {
+    return (
+      <form onSubmit={handleSubmit} className="relative w-full max-w-2xl">
+        <Input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={placeholder}
+          className="h-16 rounded-full border-[--border] bg-white pl-7 pr-16 text-base shadow-[0_2px_4px_rgba(26,15,8,0.04),0_16px_40px_-12px_rgba(26,15,8,0.18)] transition-shadow focus-visible:shadow-[0_2px_4px_rgba(26,15,8,0.06),0_20px_48px_-12px_rgba(199,62,29,0.25)] sm:text-lg"
+          aria-label="Search shops"
+          suppressHydrationWarning
+        />
+        <Button
+          type="submit"
+          size="icon"
+          aria-label="Search"
+          className="absolute right-2.5 top-1/2 h-11 w-11 -translate-y-1/2 rounded-full shadow-md transition-transform hover:scale-105"
+        >
+          <Search className="h-5 w-5" />
+        </Button>
+      </form>
+    )
   }
 
   return (

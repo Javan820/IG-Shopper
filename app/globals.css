@@ -62,9 +62,9 @@ body {
 }
 
 /* Fixed gradient wash on its own GPU compositor layer.
-   Replaces `background-attachment: fixed`, which forced a full-viewport
-   repaint on every scroll frame. translateZ(0) isolates it so it never
-   repaints during scroll. */
+   Kept intentionally faint — sections own their backgrounds; this only adds
+   a hint of warmth so the cream never reads as flat grey. translateZ(0)
+   isolates it so it never repaints during scroll. */
 body::before {
   content: "";
   position: fixed;
@@ -72,10 +72,49 @@ body::before {
   z-index: -1;
   pointer-events: none;
   background-image:
-    radial-gradient(ellipse 80% 55% at 12% 18%, rgba(255, 210, 170, 0.38) 0%, transparent 65%),
-    radial-gradient(ellipse 55% 45% at 88% 78%, rgba(255, 185, 130, 0.22) 0%, transparent 60%),
-    radial-gradient(ellipse 50% 40% at 55% 50%, rgba(255, 240, 210, 0.18) 0%, transparent 70%);
+    radial-gradient(ellipse 80% 55% at 12% 18%, rgba(255, 210, 170, 0.10) 0%, transparent 65%),
+    radial-gradient(ellipse 55% 45% at 88% 78%, rgba(255, 185, 130, 0.06) 0%, transparent 60%);
   transform: translateZ(0);
+}
+
+/* Shared card treatment — crisp border + soft neutral shadow, deepens on hover */
+.card-elevate {
+  border: 1px solid var(--border);
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(26, 15, 8, 0.04), 0 4px 16px -8px rgba(26, 15, 8, 0.06);
+  transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s ease, border-color 0.25s ease;
+}
+.card-elevate:hover {
+  transform: translateY(-3px);
+  border-color: rgba(199, 62, 29, 0.35);
+  box-shadow: 0 2px 4px rgba(26, 15, 8, 0.05), 0 18px 40px -12px rgba(26, 15, 8, 0.16);
+}
+
+/* Hand-drawn marker underline for hero keywords */
+.marker-underline {
+  position: relative;
+  white-space: nowrap;
+}
+.marker-underline > svg {
+  position: absolute;
+  left: 0;
+  bottom: -0.12em;
+  width: 100%;
+  height: 0.28em;
+  overflow: visible;
+}
+.marker-underline > svg path {
+  fill: none;
+  stroke: var(--primary);
+  stroke-width: 7;
+  stroke-linecap: round;
+  opacity: 0.85;
+  stroke-dasharray: 300;
+  stroke-dashoffset: 300;
+  animation: marker-draw 0.9s 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+@keyframes marker-draw {
+  to { stroke-dashoffset: 0; }
 }
 
 /* Staggered page-load reveal */

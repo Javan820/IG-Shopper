@@ -19,7 +19,7 @@ export async function NotificationBell() {
   return (
     <Link
       href="/notifications"
-      className="relative flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+      className="relative flex h-9 w-9 items-center justify-center rounded-md text-[#D8C3AC] transition-colors hover:bg-white/10 hover:text-white"
       aria-label={unread > 0 ? `${unread} unread notifications` : 'Notifications'}
     >
       <Bell className="h-5 w-5" aria-hidden="true" />

@@ -171,7 +171,14 @@ export async function updateProfile(_: unknown, formData: FormData) {
   const avatarFile = formData.get('avatar') as File | null
   if (avatarFile && avatarFile.size > 0) {
     if (avatarFile.size > 5 * 1024 * 1024) return { error: 'Avatar must be under 5 MB.' }
-    const ext = avatarFile.name.split('.').pop()?.toLowerCase() ?? 'jpg'
+    const AVATAR_EXT: Record<string, string> = {
+      'image/jpeg': 'jpg',
+      'image/png': 'png',
+      'image/webp': 'webp',
+      'image/gif': 'gif',
+    }
+    const ext = AVATAR_EXT[avatarFile.type]
+    if (!ext) return { error: 'Avatar must be a JPEG, PNG, WebP or GIF image.' }
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('profile-avatars')
       .upload(`${user.id}/avatar.${ext}`, avatarFile, { upsert: true, contentType: avatarFile.type })

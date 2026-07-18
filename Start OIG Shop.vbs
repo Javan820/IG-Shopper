@@ -1,4 +1,4 @@
-Dim projectDir, port, shell, fso, lockFile, result, i
+Dim projectDir, port, shell, fso, lockFile, result, i, needStart
 
 projectDir = "d:\Javan\Cluade Code\business\BB OIG Shop"
 port       = 3000
@@ -15,10 +15,35 @@ If fso.FileExists(lockFile) Then
     End If
 End If
 
-' 1) Server already running — open browser immediately
+needStart = False
+
+' 1) Something is listening on the port — verify it actually serves pages before
+'    opening the browser. A leftover/zombie server can hold the port while serving
+'    nothing, which looks like a crash. If unhealthy: kill it and start fresh.
 result = shell.Run("cmd /c netstat -ano | findstr :" & port & " | findstr LISTENING", 0, True)
 If result = 0 Then
-    shell.Run "http://localhost:" & port
+    Dim httpCheck, healthy
+    healthy = False
+    Set httpCheck = CreateObject("MSXML2.ServerXMLHTTP.6.0")
+    httpCheck.SetTimeouts 3000, 3000, 15000, 15000
+    On Error Resume Next
+    httpCheck.Open "GET", "http://localhost:" & port & "/", False
+    httpCheck.Send
+    If Err.Number = 0 Then
+        If httpCheck.Status = 200 Then healthy = True
+    End If
+    Err.Clear
+    On Error GoTo 0
+
+    If healthy Then
+        shell.Run "http://localhost:" & port
+    Else
+        shell.Popup "OIG Shop: found a broken server — restarting it. Please wait.", 5, "OIG Shop", 64
+        shell.Run "powershell -WindowStyle Hidden -Command ""Get-NetTCPConnection -LocalPort " & port & " -State Listen -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }""", 0, True
+        WScript.Sleep 2000
+        If fso.FileExists(lockFile) Then fso.DeleteFile lockFile
+        needStart = True
+    End If
 
 ' 2) Lock exists — another click is already starting it, just wait
 ElseIf fso.FileExists(lockFile) Then
@@ -43,6 +68,10 @@ ElseIf fso.FileExists(lockFile) Then
 
 ' 3) First click — start the server
 Else
+    needStart = True
+End If
+
+If needStart Then
     fso.CreateTextFile(lockFile, True).Close
 
     ' Production build runs MUCH faster than dev mode. If no build exists yet

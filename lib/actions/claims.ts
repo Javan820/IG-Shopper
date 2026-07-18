@@ -125,6 +125,13 @@ export async function approveClaim(formData: FormData): Promise<void> {
 
   if (shopError) throw new Error(shopError.message)
 
+  await adminClient
+    .from('shop_claims')
+    .update({ status: 'rejected' } as never)
+    .eq('shop_id', claim.shop_id)
+    .eq('status', 'pending')
+    .neq('id', claimId)
+
   revalidatePath('/admin/claims')
 }
 

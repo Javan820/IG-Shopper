@@ -22,7 +22,7 @@ from dotenv import load_dotenv
 from supabase import create_client, Client
 
 from ig_shop_agent import IgShopAgent, SessionExpiredError
-from discovery_worker import upload_cover, _normalize_handle, _log
+from discovery_worker import upload_cover, _normalize_handle, _log, fetch_all
 
 for _stream in (sys.stdout, sys.stderr):
     try:
@@ -41,14 +41,14 @@ ENRICH_DELAY = float(os.environ.get('ENRICH_DELAY', '0.85'))
 
 def shops_missing_cover(db: Client) -> list[dict]:
     """All shops (any status) with no cover image and a live IG handle."""
-    res = db.table('shops').select(
+    rows = fetch_all(lambda: db.table('shops').select(
         'id, ig_handle, name, cover_image_url, ig_handle_status'
-    ).execute()
+    ))
     out = []
-    for row in (res.data or []):
+    for row in rows:
         if (row.get('cover_image_url') or '').strip():
             continue  # already has a cover — leave it alone
-        if row.get('ig_handle_status') == 'dead':
+        if row.get('ig_handle_status') == 'broken':
             continue  # handle no longer resolves; skip
         out.append(row)
     return out

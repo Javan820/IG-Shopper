@@ -1,5 +1,3 @@
-'use client'
-import { useState, useEffect, useRef, type CSSProperties } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { Star, MapPin, BadgeCheck } from 'lucide-react'
@@ -26,67 +24,6 @@ function getGradient(category: string | null) {
     : COVER_GRADIENTS['Other']
 }
 
-function hexToHsl(hex: string): { h: number; s: number } {
-  const r = parseInt(hex.slice(1, 3), 16) / 255
-  const g = parseInt(hex.slice(3, 5), 16) / 255
-  const b = parseInt(hex.slice(5, 7), 16) / 255
-  const max = Math.max(r, g, b), min = Math.min(r, g, b)
-  if (max === min) return { h: 0, s: 0 }
-  const d = max - min
-  const l = (max + min) / 2
-  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
-  let h = max === r ? (g - b) / d + (g < b ? 6 : 0)
-        : max === g ? (b - r) / d + 2
-                    : (r - g) / d + 4
-  return { h: (h / 6) * 360, s: s * 100 }
-}
-
-const colorCache = new Map<string, { hue: number; saturation: number } | null>()
-
-async function extractImageColors(url: string): Promise<{ hue: number; saturation: number } | null> {
-  if (colorCache.has(url)) return colorCache.get(url)!
-  try {
-    const response = await fetch(`/_next/image?url=${encodeURIComponent(url)}&w=16&q=75`)
-    if (!response.ok) return null
-    const blob = await response.blob()
-    const bitmap = await createImageBitmap(blob)
-    const canvas = document.createElement('canvas')
-    canvas.width = 8
-    canvas.height = 8
-    const ctx = canvas.getContext('2d')
-    if (!ctx) { bitmap.close(); return null }
-    ctx.drawImage(bitmap, 0, 0, 8, 8)
-    bitmap.close()
-    const data = ctx.getImageData(0, 0, 8, 8).data
-    let hueSum = 0, satWeightSum = 0, satTotal = 0
-    const count = data.length / 4
-    for (let i = 0; i < data.length; i += 4) {
-      const r = data[i] / 255, g = data[i + 1] / 255, b = data[i + 2] / 255
-      const max = Math.max(r, g, b), min = Math.min(r, g, b)
-      if (max === 0) continue
-      const sat = (max - min) / max
-      satTotal += sat
-      if (sat > 0.15) {
-        const d = max - min
-        let h = max === r ? (g - b) / d + (g < b ? 6 : 0)
-              : max === g ? (b - r) / d + 2
-                          : (r - g) / d + 4
-        h = (h / 6) * 360
-        hueSum += h * sat
-        satWeightSum += sat
-      }
-    }
-    const avgSat = (satTotal / count) * 100
-    const hue = satWeightSum > 0 ? hueSum / satWeightSum : 0
-    const result = { hue, saturation: Math.min(avgSat * 2.8, 100) }
-    colorCache.set(url, result)
-    return result
-  } catch {
-    colorCache.set(url, null)
-    return null
-  }
-}
-
 interface ShopCardProps {
   shop: ShopCardData
 }
@@ -94,61 +31,11 @@ interface ShopCardProps {
 export function ShopCard({ shop }: ShopCardProps) {
   const grad = getGradient(shop.category)
   const hasRating = shop.avg_rating !== null && shop.review_count > 0
-  const categoryHsl = hexToHsl(grad.from)
-  const [glowHue, setGlowHue] = useState(categoryHsl.h)
-  const [glowSaturation, setGlowSaturation] = useState(categoryHsl.s)
-  const cardRef = useRef<HTMLAnchorElement>(null)
-
-  useEffect(() => {
-    const url = shop.cover_image_url
-    const node = cardRef.current
-    if (!url || !node) return
-
-    // The runtime glow-tint reads each cover image through a canvas (fetch →
-    // createImageBitmap → getImageData). On touch devices these fire in a burst
-    // as the grid scrolls into view — and iOS Safari lacks requestIdleCallback,
-    // so they run on the scroll frame and stall it. Skip on non-fine pointers;
-    // the category-derived hue already gives the card a sensible glow.
-    if (!window.matchMedia?.('(hover: hover) and (pointer: fine)').matches) return
-
-    let cancelled = false
-    const ric = window.requestIdleCallback ?? ((cb: () => void) => setTimeout(cb, 1))
-
-    const run = () => {
-      ric(() => {
-        if (cancelled) return
-        extractImageColors(url).then((result) => {
-          if (!cancelled && result) {
-            setGlowHue(result.hue)
-            setGlowSaturation(result.saturation)
-          }
-        })
-      })
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0]?.isIntersecting) {
-          observer.disconnect()
-          run()
-        }
-      },
-      { rootMargin: '200px' }
-    )
-    observer.observe(node)
-
-    return () => {
-      cancelled = true
-      observer.disconnect()
-    }
-  }, [shop.cover_image_url])
 
   return (
     <Link
-      ref={cardRef}
       href={`/shops/${shop.ig_handle}`}
-      style={{ '--glow': `hsl(${glowHue}deg ${glowSaturation}% 55% / 0.35)` } as CSSProperties}
-      className="group block overflow-hidden rounded-2xl border border-[--border] bg-white shadow-[0_0_20px_2px_var(--glow)] transition-transform duration-300 hover:-translate-y-1"
+      className="card-elevate group block overflow-hidden rounded-2xl"
     >
       {/* Cover image */}
       <div className="relative h-44 overflow-hidden">
@@ -188,12 +75,12 @@ export function ShopCard({ shop }: ShopCardProps) {
           )}
         </div>
 
-        <h3 className="font-bold leading-snug text-[--foreground] line-clamp-1 group-hover:text-[--primary] transition-colors">
+        <h3 className="font-bold leading-snug text-[--foreground] line-clamp-1 transition-colors group-hover:text-[--primary]">
           {shop.name}
         </h3>
 
         <div className="mt-2 flex items-center gap-3 text-sm text-[--muted-foreground]">
-          {hasRating && (
+          {hasRating ? (
             <span className="flex items-center gap-1">
               <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
               <span className="font-semibold text-[--foreground]">
@@ -201,9 +88,13 @@ export function ShopCard({ shop }: ShopCardProps) {
               </span>
               <span className="text-xs">({shop.review_count})</span>
             </span>
+          ) : (
+            <span className="rounded-full bg-[--accent] px-2 py-0.5 text-[11px] font-semibold text-[--accent-foreground]">
+              New
+            </span>
           )}
           {shop.location && (
-            <span className="flex items-center gap-1 min-w-0">
+            <span className="flex min-w-0 items-center gap-1">
               <MapPin className="h-3.5 w-3.5 shrink-0" />
               <span className="truncate text-xs">{shop.location}</span>
             </span>

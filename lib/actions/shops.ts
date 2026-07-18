@@ -58,6 +58,14 @@ export async function submitShop(_: unknown, formData: FormData) {
     return { error: `@${handle} is already pending review.` }
   }
 
+  const { data: blocked } = await createAdminClient()
+    .from('discovery_blocklist')
+    .select('ig_handle')
+    .eq('ig_handle', handle)
+    .maybeSingle()
+
+  if (blocked) return { error: `@${handle} was previously reviewed and rejected by our moderators.` }
+
   const payload: TablesInsert<'shops'> = {
     ig_handle: handle,
     name: parsed.data.name,
@@ -163,8 +171,17 @@ export async function approveShop(formData: FormData): Promise<void> {
 
   const adminClient = createAdminClient()
   const payload: TablesUpdate<'shops'> = { status: 'approved', is_active: true }
-  const { error } = await adminClient.from('shops').update(payload as never).eq('id', shopId)
+  const { data: approved, error } = await adminClient
+    .from('shops')
+    .update(payload as never)
+    .eq('id', shopId)
+    .select('ig_handle')
+    .maybeSingle()
   if (error) throw new Error(error.message)
+
+  if (approved?.ig_handle) {
+    await adminClient.from('discovery_blocklist').delete().eq('ig_handle', approved.ig_handle)
+  }
 
   revalidatePath('/admin/shops')
 }
@@ -270,7 +287,13 @@ export async function uploadShopCover(formData: FormData) {
   if (!file || file.size === 0) return { error: 'No file selected.' }
   if (file.size > 10 * 1024 * 1024) return { error: 'Image must be under 10 MB.' }
 
-  const ext = file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
+  const COVER_EXT: Record<string, string> = {
+    'image/jpeg': 'jpg',
+    'image/png': 'png',
+    'image/webp': 'webp',
+  }
+  const ext = COVER_EXT[file.type]
+  if (!ext) return { error: 'Cover must be a JPEG, PNG or WebP image.' }
   const path = `${shopId}/cover.${ext}`
 
   const adminClient = createAdminClient()
@@ -314,6 +337,21 @@ export async function clearRejectedShops() {
   if (!admin) return { error: 'Unauthorised.' }
 
   const adminClient = createAdminClient()
+
+  const { data: rejected, error: fetchError } = await adminClient
+    .from('shops')
+    .select('ig_handle')
+    .eq('status', 'rejected')
+  if (fetchError) return { error: fetchError.message }
+
+  if (rejected && rejected.length > 0) {
+    const { error: blockError } = await adminClient.from('discovery_blocklist').upsert(
+      rejected.map((s) => ({ ig_handle: s.ig_handle, reason: 'rejected' })) as never,
+      { onConflict: 'ig_handle' }
+    )
+    if (blockError) return { error: blockError.message }
+  }
+
   const { error } = await adminClient.from('shops').delete().eq('status', 'rejected')
   if (error) return { error: error.message }
 

@@ -12,21 +12,22 @@ import { ShopProfileTabs } from '@/components/shop/ShopProfileTabs'
 import { BookmarkButton } from '@/components/shop/BookmarkButton'
 import { ShopReactionBar } from '@/components/shop/ShopReactionBar'
 import { ReviewListSkeleton } from '@/components/common/LoadingSkeleton'
-import type { Shop, Review, ReviewWithProfile } from '@/lib/supabase/types'
+import { ShopPostsDeck } from '@/components/shop/ShopPostsDeck'
+import type { Shop, ShopPost, Review, ReviewWithProfile } from '@/lib/supabase/types'
 import type { ReactionType } from '@/lib/actions/reactions'
 
 const COVER_GRADIENTS: Record<string, string> = {
-  'Fashion & Clothing':      'from-purple-400 to-pink-400',
-  'Beauty & Skincare':       'from-rose-400 to-orange-300',
-  'Food & Drinks':           'from-amber-400 to-orange-400',
-  'Art & Prints':            'from-blue-400 to-indigo-400',
-  'Jewellery & Accessories': 'from-yellow-400 to-amber-400',
-  'Home & Lifestyle':        'from-green-400 to-teal-400',
-  'Books & Stationery':      'from-slate-400 to-blue-400',
-  'Health & Wellness':       'from-emerald-400 to-teal-500',
-  'Vintage & Second-hand':   'from-stone-400 to-amber-400',
-  'Digital Products':        'from-violet-400 to-purple-400',
-  'Other':                   'from-slate-300 to-slate-400',
+  'Fashion & Clothing':      'from-[#3B1F3E] to-[#7A2E4E]',
+  'Beauty & Skincare':       'from-[#4A2030] to-[#8A4A2E]',
+  'Food & Drinks':           'from-[#4A2A12] to-[#8A5A1E]',
+  'Art & Prints':            'from-[#1E2A4A] to-[#3E4A7A]',
+  'Jewellery & Accessories': 'from-[#4A3A12] to-[#8A6A1E]',
+  'Home & Lifestyle':        'from-[#1E3A2A] to-[#2E6A5A]',
+  'Books & Stationery':      'from-[#26304A] to-[#3E5A7A]',
+  'Health & Wellness':       'from-[#1A3A32] to-[#2E6A56]',
+  'Vintage & Second-hand':   'from-[#3A3230] to-[#6A4A2E]',
+  'Digital Products':        'from-[#32264A] to-[#5A3E7A]',
+  'Other':                   'from-[#2E2A26] to-[#4A443E]',
 }
 
 function getGradient(category: string | null): string {
@@ -129,6 +130,7 @@ interface PageProps {
 
 export default async function ShopProfilePage({ params }: PageProps) {
   const { ig_handle } = await params
+  const handle = decodeURIComponent(ig_handle).toLowerCase().replace(/^@/, '')
   const supabase = await createClient()
 
   const {
@@ -138,7 +140,7 @@ export default async function ShopProfilePage({ params }: PageProps) {
   const { data: shopData } = await supabase
     .from('shops')
     .select('*')
-    .eq('ig_handle', ig_handle)
+    .eq('ig_handle', handle)
     .eq('status', 'approved')
     .eq('is_active', true)
     .single()
@@ -157,6 +159,7 @@ export default async function ShopProfilePage({ params }: PageProps) {
     { data: savedData },
     { data: reactionRows },
     { data: userReactionData },
+    { data: postRows },
   ] = await Promise.all([
     user
       ? supabase
@@ -175,6 +178,12 @@ export default async function ShopProfilePage({ params }: PageProps) {
           .eq('user_id', user.id)
           .maybeSingle()
       : Promise.resolve({ data: null }),
+    supabase
+      .from('shop_posts')
+      .select('*')
+      .eq('shop_id', shop.id)
+      .order('position', { ascending: true })
+      .limit(10),
   ])
 
   // Aggregate rating comes from the denormalised columns on the shop row
@@ -189,27 +198,48 @@ export default async function ShopProfilePage({ params }: PageProps) {
     if (r in reactionCounts) reactionCounts[r]++
   }
   const userReaction = (userReactionData?.reaction ?? null) as ReactionType | null
+  const shopPosts = (postRows ?? []) as ShopPost[]
 
   const gradient = getGradient(shop.category)
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      {/* Cover image — shorter height to reduce blank space */}
-      <div className={`relative h-64 w-full overflow-hidden bg-gradient-to-br ${gradient} sm:h-80`}>
-        {shop.cover_image_url && (
-          <Image
-            src={shop.cover_image_url}
-            alt={shop.name}
-            fill
-            className="object-contain"
-            priority
-          />
+    <div className="min-h-screen">
+      {/* Cover — blurred backdrop + contained image, muted brand-dark gradient fallback */}
+      <div className={`relative h-52 w-full overflow-hidden bg-gradient-to-br ${gradient} sm:h-64`}>
+        {shop.cover_image_url ? (
+          <>
+            <Image
+              src={shop.cover_image_url}
+              alt=""
+              aria-hidden="true"
+              fill
+              className="scale-110 object-cover opacity-60 blur-2xl"
+              priority
+            />
+            <Image
+              src={shop.cover_image_url}
+              alt={shop.name}
+              fill
+              className="object-contain drop-shadow-xl"
+              priority
+            />
+          </>
+        ) : (
+          <div aria-hidden="true" className="absolute inset-0 flex items-center justify-center">
+            <span
+              className="select-none text-4xl font-black tracking-wide text-white/25 sm:text-5xl"
+              style={{ fontFamily: 'var(--font-playfair)' }}
+            >
+              @{shop.ig_handle}
+            </span>
+          </div>
         )}
+        <div aria-hidden="true" className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/30 to-transparent" />
       </div>
 
-      {/* Shop info bar */}
-      <div className="border-b bg-white">
-        <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6 lg:px-8">
+      {/* Shop info card — overlaps the cover */}
+      <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
+        <div className="relative -mt-10 rounded-2xl border border-[--border] bg-white px-5 py-6 shadow-[0_2px_4px_rgba(26,15,8,0.04),0_20px_48px_-16px_rgba(26,15,8,0.18)] sm:-mt-12 sm:px-8">
           <div className="mb-2 flex flex-wrap items-center gap-2">
             {shop.category && <CategoryBadge category={shop.category} />}
             {shop.is_verified && (
@@ -293,6 +323,18 @@ export default async function ShopProfilePage({ params }: PageProps) {
           )}
         </div>
       </div>
+
+      {shopPosts.length > 0 && (
+        <div className="mx-auto max-w-4xl px-4 pt-8 sm:px-6 lg:px-8">
+          <ShopPostsDeck
+            posts={shopPosts}
+            igHandle={shop.ig_handle}
+            shopName={shop.name}
+            avatarUrl={shop.cover_image_url}
+            gradient={gradient}
+          />
+        </div>
+      )}
 
       {/* Tabs + content — reviews streamed via Suspense */}
       <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">

@@ -94,7 +94,8 @@ async function ShopResults({ params }: { params: FilterParams }) {
     query = query.gte('avg_rating', minRating)
   }
 
-  // Sorting in SQL — backed by shops_avg_rating_idx / shops_review_count_idx.
+  // Sorting in SQL — backed by shops_avg_rating_idx / shops_review_count_idx /
+  // shops_popularity_idx / shops_recommend_count_idx.
   if (sort === 'highest_rated') {
     query = query
       .order('avg_rating', { ascending: false, nullsFirst: false })
@@ -102,6 +103,14 @@ async function ShopResults({ params }: { params: FilterParams }) {
   } else if (sort === 'most_reviewed') {
     query = query
       .order('review_count', { ascending: false })
+      .order('created_at', { ascending: false })
+  } else if (sort === 'most_popular') {
+    query = query
+      .order('popularity_score', { ascending: false })
+      .order('created_at', { ascending: false })
+  } else if (sort === 'most_recommended') {
+    query = query
+      .order('recommend_count', { ascending: false })
       .order('created_at', { ascending: false })
   } else {
     query = query.order('created_at', { ascending: false })

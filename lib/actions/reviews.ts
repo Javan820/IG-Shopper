@@ -1,6 +1,7 @@
 'use server'
 
 import { z } from 'zod'
+import { after } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
@@ -107,7 +108,7 @@ export async function submitReview(_: unknown, formData: FormData) {
 
   revalidatePath(`/shops/${parsed.data.ig_handle}`)
 
-  notifyFollowersOfNewReview(user.id, parsed.data.ig_handle, parsed.data.rating, parsed.data.title)
+  after(() => notifyFollowersOfNewReview(user.id, parsed.data.ig_handle, parsed.data.rating, parsed.data.title))
 
   return { success: true as const }
 }
@@ -331,7 +332,7 @@ export async function toggleReaction(formData: FormData) {
       .insert({ user_id: user.id, review_id: reviewId, emoji } as never)
     if (error) return { error: `insert: ${error.message}` }
 
-    notifyReviewAuthorOfReaction(user.id, reviewId, emoji, igHandle)
+    after(() => notifyReviewAuthorOfReaction(user.id, reviewId, emoji, igHandle))
   }
 
   revalidatePath(`/shops/${igHandle}`)

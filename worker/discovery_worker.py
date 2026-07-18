@@ -103,10 +103,36 @@ async def claim_next_job(db: Client) -> dict | None:
     return job
 
 
+def fetch_all(make_query, page_size: int = 1000) -> list[dict]:
+    """Fetch every row for a query, paging past PostgREST's 1000-row cap.
+
+    `make_query` is a zero-arg callable returning a fresh filtered query
+    builder; each page re-builds it because builders are single-use.
+    """
+    rows: list[dict] = []
+    offset = 0
+    while True:
+        page = make_query().range(offset, offset + page_size - 1).execute().data or []
+        rows.extend(page)
+        if len(page) < page_size:
+            return rows
+        offset += page_size
+
+
 def existing_handles(db: Client) -> set[str]:
-    """All handles already in `shops`, so we never insert duplicates."""
-    res = db.table('shops').select('ig_handle').execute()
-    return {_normalize_handle(r['ig_handle']) for r in (res.data or [])}
+    """All handles already in `shops` plus the admin's rejected-and-cleared
+    blocklist, so we never insert duplicates or re-discover rejected shops."""
+    handles = {
+        _normalize_handle(r['ig_handle'])
+        for r in fetch_all(lambda: db.table('shops').select('ig_handle'))
+    }
+    try:
+        blocked = fetch_all(lambda: db.table('discovery_blocklist').select('ig_handle'))
+        handles |= {_normalize_handle(r['ig_handle']) for r in blocked}
+    except Exception as e:
+        # Table missing until its migration runs — warn but keep discovering.
+        _log(f'  ! blocklist unavailable ({e}); proceeding without it')
+    return handles
 
 
 COVER_BUCKET = 'shop-covers'

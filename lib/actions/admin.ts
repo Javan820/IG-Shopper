@@ -3,7 +3,12 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
-import type { TierId } from '@/lib/constants'
+import { TIERS, type TierId } from '@/lib/constants'
+
+function parseTier(value: string): TierId | null | undefined {
+  if (value === 'auto') return null
+  return TIERS.some((t) => t.id === value) ? (value as TierId) : undefined
+}
 
 async function requireAdmin() {
   const supabase = await createClient()
@@ -26,7 +31,8 @@ export async function setUserTier(_: unknown, formData: FormData) {
   const userId = formData.get('user_id') as string
   const value = formData.get('tier_override') as string
 
-  const tierOverride: TierId | null = value === 'auto' ? null : (value as TierId)
+  const tierOverride = parseTier(value)
+  if (tierOverride === undefined) return { error: 'Invalid tier.' }
 
   const adminClient = createAdminClient()
   const { error } = await adminClient
@@ -47,7 +53,8 @@ export async function setUserDisplayTier(_: unknown, formData: FormData) {
   const userId = formData.get('user_id') as string
   const value = formData.get('display_tier') as string
 
-  const displayTier: TierId | null = value === 'auto' ? null : (value as TierId)
+  const displayTier = parseTier(value)
+  if (displayTier === undefined) return { error: 'Invalid tier.' }
 
   const adminClient = createAdminClient()
   const { error } = await adminClient
@@ -66,8 +73,9 @@ export async function setUserRole(_: unknown, formData: FormData) {
   if (!admin) return { error: 'Unauthorised.' }
 
   const userId = formData.get('user_id') as string
-  const role = formData.get('role') as 'user' | 'admin'
+  const role = formData.get('role') as string
 
+  if (role !== 'user' && role !== 'admin') return { error: 'Invalid role.' }
   if (userId === admin.id) return { error: 'Cannot change your own role.' }
 
   const adminClient = createAdminClient()

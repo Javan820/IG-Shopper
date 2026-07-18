@@ -30,6 +30,8 @@ const SORT_OPTIONS = [
   { label: 'Newest', value: 'newest' },
   { label: 'Highest Rated', value: 'highest_rated' },
   { label: 'Most Reviewed', value: 'most_reviewed' },
+  { label: 'Most Popular', value: 'most_popular' },
+  { label: 'Highest Recommended', value: 'most_recommended' },
 ]
 
 export function ShopFilters({ currentFilters }: ShopFiltersProps) {
